@@ -16,10 +16,21 @@
       <span class="inline-flex items-baseline gap-1.5"><strong class="font-mono text-base text-gray-900 dark:text-white">{{ stats.groups }}</strong><span class="text-gray-500 dark:text-dark-400">{{ copy.groupUnit }}</span></span>
       <span class="inline-flex items-baseline gap-1.5"><strong class="font-mono text-base text-gray-900 dark:text-white">{{ stats.models }}</strong><span class="text-gray-500 dark:text-dark-400">{{ copy.modelUnit }}</span></span>
       <span class="inline-flex items-baseline gap-1.5"><strong class="font-mono text-base text-gray-900 dark:text-white">{{ stats.platforms }}</strong><span class="text-gray-500 dark:text-dark-400">{{ copy.platformUnit }}</span></span>
-      <span class="ml-auto inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-dark-400">
-        <Icon name="calculator" size="xs" class="text-primary-500" aria-hidden="true" />
-        {{ copy.priceBasis }}
-      </span>
+      <div class="ml-auto flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span class="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-dark-400">
+          <Icon name="calculator" size="xs" class="text-primary-500" aria-hidden="true" />
+          {{ copy.priceBasis }}
+        </span>
+        <label class="inline-flex cursor-pointer select-none items-center gap-2 text-xs font-medium text-gray-700 dark:text-dark-200">
+          <input
+            v-model="showOfficialPrice"
+            type="checkbox"
+            class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
+            data-test="official-price-toggle"
+          />
+          <span>{{ copy.showOfficialPrice }}</span>
+        </label>
+      </div>
     </div>
 
     <div v-if="descriptionHtml" class="plaza-description rounded-xl border border-primary-100 bg-primary-50/60 px-4 py-3 text-sm dark:border-primary-900/40 dark:bg-primary-950/20" v-html="descriptionHtml"></div>
@@ -93,7 +104,13 @@
           </header>
 
           <div class="grid gap-4 xl:grid-cols-2">
-            <ModelPriceCard v-for="model in sortModels(activeGroup.models)" :key="`${activeGroup.id}-${model.name}`" :group="activeGroup" :model="model" />
+            <ModelPriceCard
+              v-for="model in sortModels(activeGroup.models)"
+              :key="`${activeGroup.id}-${model.name}`"
+              :group="activeGroup"
+              :model="model"
+              :show-official-price="showOfficialPrice"
+            />
           </div>
         </section>
       </div>
@@ -143,6 +160,7 @@ const appStore = useAppStore()
 const query = ref('')
 const platform = ref('all')
 const billing = ref<BillingFilter>('all')
+const showOfficialPrice = ref(false)
 const selectedGroupId = ref<number | null>(null)
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)

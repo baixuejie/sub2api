@@ -26,4 +26,12 @@ describe('Model Plaza extension integration surface', () => {
     expect(adapter).toContain("'/model-plaza'")
     expect(adapter).not.toContain("../components/modelPlaza")
   })
+
+  it('keeps actual prices as the default and forwards the official-price toggle', () => {
+    const explorer = read('../components/PlazaExplorer.vue')
+
+    expect(explorer).toContain('const showOfficialPrice = ref(false)')
+    expect(explorer).toContain('v-model="showOfficialPrice"')
+    expect(explorer).toContain(':show-official-price="showOfficialPrice"')
+  })
 })

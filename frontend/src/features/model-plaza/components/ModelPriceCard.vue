@@ -16,7 +16,7 @@
           </h3>
           <div class="mt-1 flex flex-wrap items-center gap-1.5">
             <span class="billing-badge">{{ billingLabel }}</span>
-            <span v-if="!hasConfiguredPricing(model)" class="billing-badge billing-badge-muted">{{ copy.noPricing }}</span>
+            <span v-if="!hasDisplayedPricing" class="billing-badge billing-badge-muted">{{ unavailableLabel }}</span>
           </div>
         </div>
       </div>
@@ -31,22 +31,28 @@
       </button>
     </header>
 
-    <div v-if="hasConfiguredPricing(model)" class="px-4 pb-4 sm:px-5">
+    <div v-if="hasDisplayedPricing" class="px-4 pb-4 sm:px-5">
       <template v-if="isTokenBilling">
-        <div v-if="tokenRows.length" class="divide-y divide-gray-100 rounded-xl border border-gray-100 dark:divide-dark-700/70 dark:border-dark-700">
-          <div v-for="(interval, index) in tokenRows" :key="index" class="price-row px-3 py-3">
+        <div v-if="displayTokenRows.length" class="divide-y divide-gray-100 rounded-xl border border-gray-100 dark:divide-dark-700/70 dark:border-dark-700">
+          <div v-for="(interval, index) in displayTokenRows" :key="index" class="price-row px-3 py-3">
             <div class="mb-2 flex items-center justify-between gap-2">
               <span class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
-                {{ interval ? tierLabel(interval) : copy.actualPrice }}
+                {{ interval ? tierLabel(interval) : displayPriceLabel }}
               </span>
-              <span class="text-[11px] text-gray-400 dark:text-dark-500">{{ copy.perMillion }}</span>
+              <span class="text-[11px] text-gray-400 dark:text-dark-500">{{ tokenUnit }}</span>
             </div>
             <div class="grid grid-cols-2 gap-2">
               <PriceCell :label="copy.input" :value="tokenPrice(interval, 'input_price')" />
               <PriceCell :label="copy.output" :value="tokenPrice(interval, 'output_price')" />
             </div>
-            <div v-if="hasCache(interval)" class="mt-2 grid grid-cols-2 gap-2 border-t border-gray-100 pt-2 dark:border-dark-700/70">
+            <div v-if="hasDisplayCache(interval)" class="mt-2 grid grid-cols-2 gap-2 border-t border-gray-100 pt-2 dark:border-dark-700/70">
               <PriceCell compact :label="copy.cacheWrite" :value="tokenPrice(interval, 'cache_write_price')" />
+              <PriceCell
+                v-if="showOfficialPrice && model.official_pricing?.cache_write_1h_price != null"
+                compact
+                :label="copy.cacheWrite1h"
+                :value="officialPrice('cache_write_1h_price')"
+              />
               <PriceCell compact :label="copy.cacheRead" :value="tokenPrice(interval, 'cache_read_price')" />
             </div>
           </div>
@@ -74,11 +80,15 @@
     </div>
 
     <div v-else class="mx-4 mb-4 rounded-xl border border-dashed border-gray-200 px-3 py-5 text-center text-sm text-gray-400 dark:mx-5 dark:border-dark-700 dark:text-dark-500">
-      {{ copy.noPricing }}
+      {{ unavailableLabel }}
     </div>
 
     <footer class="border-t border-gray-100 px-4 py-3 dark:border-dark-700/70 sm:px-5">
-      <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+      <div v-if="showOfficialPrice" class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-dark-400">
+        <Icon name="infoCircle" size="xs" aria-hidden="true" />
+        {{ copy.officialRateHint }}
+      </div>
+      <div v-else class="flex flex-wrap items-center justify-between gap-2 text-xs">
         <span class="inline-flex items-center gap-1.5 text-gray-500 dark:text-dark-400">
           <Icon name="calculator" size="xs" aria-hidden="true" />
           {{ copy.rate }}
@@ -87,15 +97,6 @@
         <span v-if="usesIndependentImageRate" class="text-gray-400 dark:text-dark-500">{{ copy.imageRate }} {{ formatMultiplier(group.image_rate_multiplier) }}x</span>
         <span v-else-if="hasCustomRate" class="text-primary-600 dark:text-primary-400">{{ copy.personalRate }}</span>
       </div>
-      <details v-if="hasOfficialPricing" class="mt-2 border-t border-gray-100 pt-2 text-xs dark:border-dark-700/70">
-        <summary class="cursor-pointer select-none text-gray-400 transition-colors hover:text-gray-700 dark:text-dark-500 dark:hover:text-dark-200">{{ copy.officialReference }}</summary>
-        <div class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-gray-400 dark:text-dark-500">
-          <span>{{ copy.input }} {{ officialTokenPrice(model.official_pricing?.input_price) }}</span>
-          <span>{{ copy.output }} {{ officialTokenPrice(model.official_pricing?.output_price) }}</span>
-          <span v-if="model.official_pricing?.cache_write_price != null">{{ copy.cacheWrite }} {{ officialTokenPrice(model.official_pricing.cache_write_price) }}</span>
-          <span v-if="model.official_pricing?.cache_read_price != null">{{ copy.cacheRead }} {{ officialTokenPrice(model.official_pricing.cache_read_price) }}</span>
-        </div>
-      </details>
     </footer>
   </article>
 </template>
@@ -109,7 +110,7 @@ import type { GroupPlatform } from '@/types'
 import { platformAccentColor } from '@/utils/platformColors'
 import { BILLING_MODE_IMAGE, BILLING_MODE_TOKEN } from '@/constants/channel'
 import { useModelPlazaLocale } from '../locales'
-import type { ModelPlazaGroup, ModelPricingInterval, PlazaModel } from '../types/modelPlaza'
+import type { ModelPlazaGroup, ModelPricingInterval, OfficialModelPricing, PlazaModel } from '../types/modelPlaza'
 import {
   effectiveModelRate,
   hasConfiguredPricing,
@@ -122,10 +123,13 @@ import {
   tokenIntervals
 } from '../utils/modelPlaza'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   group: ModelPlazaGroup
   model: PlazaModel
-}>()
+  showOfficialPrice?: boolean
+}>(), {
+  showOfficialPrice: false
+})
 
 const copy = useModelPlazaLocale()
 const copied = ref(false)
@@ -145,7 +149,8 @@ const hasCustomRate = computed(
 const usesIndependentImageRate = computed(
   () => modelBillingMode(props.model) === BILLING_MODE_IMAGE && props.group.image_rate_independent
 )
-const tokenRows = computed<(ModelPricingInterval | null)[]>(() => {
+const displayTokenRows = computed<(ModelPricingInterval | null)[]>(() => {
+  if (props.showOfficialPrice) return [null]
   const intervals = tokenIntervals(props.model)
   return intervals.length ? intervals : [null]
 })
@@ -160,16 +165,38 @@ const hasOfficialPricing = computed(() => {
       (pricing.input_price != null ||
         pricing.output_price != null ||
         pricing.cache_write_price != null ||
+        pricing.cache_write_1h_price != null ||
         pricing.cache_read_price != null)
   )
 })
+const hasDisplayedPricing = computed(() =>
+  props.showOfficialPrice
+    ? isTokenBilling.value && hasOfficialPricing.value
+    : hasConfiguredPricing(props.model)
+)
+const displayPriceLabel = computed(() =>
+  props.showOfficialPrice ? copy.value.officialPrice : copy.value.actualPriceMode
+)
+const tokenUnit = computed(() =>
+  props.showOfficialPrice ? copy.value.officialPerMillion : copy.value.actualPerMillion
+)
+const unavailableLabel = computed(() =>
+  props.showOfficialPrice ? copy.value.officialUnavailable : copy.value.noPricing
+)
 
 function tokenPrice(
   interval: ModelPricingInterval | null,
   field: 'input_price' | 'output_price' | 'cache_write_price' | 'cache_read_price'
 ): string {
+  if (props.showOfficialPrice) {
+    return officialPrice(field)
+  }
   const value = interval ? interval[field] : props.model.pricing?.[field]
   return paidTokenPrice(props.group, value)
+}
+
+function officialPrice(field: keyof OfficialModelPricing): string {
+  return officialTokenPrice(props.model.official_pricing?.[field])
 }
 
 function requestPrice(interval: ModelPricingInterval | null): string {
@@ -177,7 +204,15 @@ function requestPrice(interval: ModelPricingInterval | null): string {
   return paidRequestPrice(props.group, props.model, value)
 }
 
-function hasCache(interval: ModelPricingInterval | null): boolean {
+function hasDisplayCache(interval: ModelPricingInterval | null): boolean {
+  if (props.showOfficialPrice) {
+    const pricing = props.model.official_pricing
+    return Boolean(
+      pricing?.cache_write_price != null ||
+        pricing?.cache_write_1h_price != null ||
+        pricing?.cache_read_price != null
+    )
+  }
   const pricing = interval ?? props.model.pricing
   return Boolean(pricing?.cache_write_price != null || pricing?.cache_read_price != null)
 }

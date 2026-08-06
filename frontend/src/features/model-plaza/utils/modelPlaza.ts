@@ -28,6 +28,9 @@ export interface PlazaStats {
 const PER_MILLION = 1_000_000
 const MIN_DECIMALS = 2
 
+/** 充值余额的计价单位：每充值 1 元人民币，增加 10 USD 额度。 */
+export const USD_CREDIT_PER_CNY = 10
+
 export function effectiveGroupRate(group: ModelPlazaGroup): number {
   return group.user_rate_multiplier ?? group.rate_multiplier
 }
@@ -48,7 +51,7 @@ export function paidTokenPrice(
   value: number | null | undefined
 ): string {
   if (value == null) return '-'
-  return formatScaled(value * effectiveGroupRate(group), PER_MILLION, MIN_DECIMALS)
+  return formatCny(value * effectiveGroupRate(group), PER_MILLION)
 }
 
 export function paidRequestPrice(
@@ -57,7 +60,7 @@ export function paidRequestPrice(
   value: number | null | undefined
 ): string {
   if (value == null) return '-'
-  return formatScaled(value * effectiveModelRate(group, model), 1, MIN_DECIMALS)
+  return formatCny(value * effectiveModelRate(group, model), 1)
 }
 
 export function officialTokenPrice(value: number | null | undefined): string {
@@ -153,4 +156,9 @@ function formatTokenCount(value: number): string {
 
 function trimNumber(value: number): string {
   return String(Math.round(value * 100) / 100)
+}
+
+/** 将 USD 额度价格换算为用户实际支付的人民币价格。 */
+function formatCny(value: number, scale: number): string {
+  return formatScaled(value / USD_CREDIT_PER_CNY, scale, MIN_DECIMALS).replace(/^\$/, '¥')
 }

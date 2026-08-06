@@ -6,9 +6,11 @@ import {
   effectiveGroupRate,
   effectiveModelRate,
   filterPlazaGroups,
+  officialTokenPrice,
   paidRequestPrice,
   paidTokenPrice,
-  tierLabel
+  tierLabel,
+  USD_CREDIT_PER_CNY
 } from '../utils/modelPlaza'
 
 function model(name: string, mode = BILLING_MODE_TOKEN): PlazaModel {
@@ -55,7 +57,8 @@ describe('model plaza extension view model', () => {
     const current = group({ user_rate_multiplier: 0.5 })
 
     expect(effectiveGroupRate(current)).toBe(0.5)
-    expect(paidTokenPrice(current, 0.000002)).toBe('$1.00')
+    expect(USD_CREDIT_PER_CNY).toBe(10)
+    expect(paidTokenPrice(current, 0.000002)).toBe('¥0.10')
   })
 
   it('uses the independent image rate only for image billing', () => {
@@ -69,7 +72,11 @@ describe('model plaza extension view model', () => {
 
     expect(effectiveModelRate(current, imageModel)).toBe(1.2)
     expect(effectiveModelRate(current, tokenModel)).toBe(0.5)
-    expect(paidRequestPrice(current, imageModel, 0.25)).toBe('$0.30')
+    expect(paidRequestPrice(current, imageModel, 0.25)).toBe('¥0.03')
+  })
+
+  it('keeps official token prices in USD without applying the group rate', () => {
+    expect(officialTokenPrice(0.000002)).toBe('$2.00')
   })
 
   it('filters real groups and models without mutating the response', () => {
