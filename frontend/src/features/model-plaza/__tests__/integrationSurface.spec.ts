@@ -1,0 +1,29 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { describe, expect, it } from 'vitest'
+
+const here = dirname(fileURLToPath(import.meta.url))
+const read = (path: string) => readFileSync(resolve(here, path), 'utf8')
+
+describe('Model Plaza extension integration surface', () => {
+  it('points the public route at the isolated feature view', () => {
+    const router = read('../../../router/index.ts')
+    const routeStart = router.indexOf("path: '/model-plaza'")
+    const route = router.slice(routeStart, router.indexOf("path: '/dashboard'", routeStart))
+
+    expect(route).toContain("component: () => import('@/features/model-plaza/views/ModelPlazaView.vue')")
+    expect(route).toContain('requiresAuth: false')
+    expect(route).toContain("titleKey: 'modelPlaza.title'")
+  })
+
+  it('keeps the extension boundary around the new page and adapter', () => {
+    const view = read('../views/ModelPlazaView.vue')
+    const adapter = read('../api/modelPlaza.ts')
+
+    expect(view).toContain("from '../api/modelPlaza'")
+    expect(view).toContain("from '../components/ExtensionNavBar.vue'")
+    expect(adapter).toContain("'/model-plaza'")
+    expect(adapter).not.toContain("../components/modelPlaza")
+  })
+})

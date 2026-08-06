@@ -1,0 +1,81 @@
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const zh = {
+  overview: '当前可用',
+  groupUnit: '个分组',
+  modelUnit: '个模型',
+  platformUnit: '个平台',
+  actualPrice: '当前实付',
+  priceBasis: '价格已按该分组当前生效倍率计算',
+  basePriceHint: '展示基础时段价格，高峰时段按分组规则额外计费',
+  allBilling: '全部计费',
+  tokenBilling: 'Token',
+  requestBilling: '按次',
+  imageBilling: '图片',
+  groupNavigation: '模型分组',
+  modelCount: '个模型',
+  noPricing: '暂未配置价格',
+  input: '输入',
+  output: '输出',
+  cacheWrite: '缓存写入',
+  cacheRead: '缓存读取',
+  perMillion: '$ / 1M token',
+  perRequest: '/ 次',
+  perImage: '/ 张',
+  rate: '计费倍率',
+  personalRate: '专属倍率',
+  imageRate: '图片倍率',
+  officialReference: '官方参考价',
+  copyModel: '复制模型名称',
+  clearSearch: '清空搜索',
+  copied: '已复制',
+  retry: '重新加载',
+  exclusive: '专属',
+  subscription: '订阅',
+  peak: '高峰',
+  selectGroup: '选择模型分组',
+  searchSummary: '找到 {count} 个匹配模型'
+} as const
+
+const en: Record<keyof typeof zh, string> = {
+  overview: 'Available now',
+  groupUnit: 'groups',
+  modelUnit: 'models',
+  platformUnit: 'platforms',
+  actualPrice: 'Current price',
+  priceBasis: 'Prices include the effective rate for this group',
+  basePriceHint: 'Base-period prices are shown; peak pricing follows the group rules',
+  allBilling: 'All billing',
+  tokenBilling: 'Token',
+  requestBilling: 'Per request',
+  imageBilling: 'Image',
+  groupNavigation: 'Model groups',
+  modelCount: 'models',
+  noPricing: 'Pricing unavailable',
+  input: 'Input',
+  output: 'Output',
+  cacheWrite: 'Cache write',
+  cacheRead: 'Cache read',
+  perMillion: '$ / 1M tokens',
+  perRequest: '/ request',
+  perImage: '/ image',
+  rate: 'Billing rate',
+  personalRate: 'Custom rate',
+  imageRate: 'Image rate',
+  officialReference: 'Official reference',
+  copyModel: 'Copy model name',
+  clearSearch: 'Clear search',
+  copied: 'Copied',
+  retry: 'Try again',
+  exclusive: 'Exclusive',
+  subscription: 'Subscription',
+  peak: 'Peak',
+  selectGroup: 'Select a model group',
+  searchSummary: '{count} matching models'
+}
+
+export function useModelPlazaLocale() {
+  const { locale } = useI18n()
+  return computed(() => (locale.value.toLowerCase().startsWith('zh') ? zh : en))
+}
