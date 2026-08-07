@@ -56,9 +56,35 @@
       <div v-else class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
         <!-- Prompt and model controls -->
         <section class="card p-5 sm:p-6">
-          <div class="mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 dark:border-dark-700">
+          <div class="mb-5 flex flex-wrap items-center gap-2 border-b border-gray-100 pb-4 dark:border-dark-700">
             <Icon name="cog" size="md" class="text-primary-500" aria-hidden="true" />
             <h2 class="font-semibold text-gray-900 dark:text-white">{{ t('imageGeneration.controls.title') }}</h2>
+            <div class="ml-auto inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 dark:border-dark-700 dark:bg-dark-900" role="tablist">
+              <button
+                type="button"
+                class="inline-flex min-h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors"
+                :class="mode === 'generate' ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-700 dark:text-primary-300' : 'text-gray-500 hover:text-gray-800 dark:text-dark-400 dark:hover:text-dark-100'"
+                :disabled="generating"
+                role="tab"
+                :aria-selected="mode === 'generate'"
+                @click="mode = 'generate'"
+              >
+                <Icon name="sparkles" size="xs" aria-hidden="true" />
+                {{ t('imageGeneration.modes.generate') }}
+              </button>
+              <button
+                type="button"
+                class="inline-flex min-h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors"
+                :class="mode === 'edit' ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-700 dark:text-primary-300' : 'text-gray-500 hover:text-gray-800 dark:text-dark-400 dark:hover:text-dark-100'"
+                :disabled="generating"
+                role="tab"
+                :aria-selected="mode === 'edit'"
+                @click="mode = 'edit'"
+              >
+                <Icon name="edit" size="xs" aria-hidden="true" />
+                {{ t('imageGeneration.modes.edit') }}
+              </button>
+            </div>
           </div>
 
           <div class="space-y-4">
@@ -89,6 +115,41 @@
                 :aria-label="t('imageGeneration.controls.model')"
                 searchable
               />
+            </div>
+
+            <div v-if="mode === 'edit'" class="rounded-xl border border-gray-100 bg-gray-50/80 p-3 dark:border-dark-700 dark:bg-dark-900/50">
+              <div class="mb-2 flex items-center justify-between gap-3">
+                <label class="input-label mb-0">{{ t('imageGeneration.edit.source') }}</label>
+                <span class="text-xs text-gray-400 dark:text-dark-500">{{ editSources.length }}/{{ MAX_EDIT_FILES }}</span>
+              </div>
+              <input
+                ref="editFileInput"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                multiple
+                class="hidden"
+                :disabled="generating || editSources.length >= MAX_EDIT_FILES"
+                @change="handleEditFiles"
+              />
+              <button type="button" class="btn btn-secondary btn-sm" :disabled="generating || editSources.length >= MAX_EDIT_FILES" @click="openEditFilePicker">
+                <Icon name="upload" size="sm" aria-hidden="true" />
+                {{ t('imageGeneration.edit.chooseFiles') }}
+              </button>
+              <div v-if="editSources.length" class="mt-3 grid grid-cols-4 gap-2">
+                <figure v-for="(source, index) in editSources" :key="`${source.file.name}-${source.file.size}-${index}`" class="group relative aspect-square overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800">
+                  <img :src="source.src" :alt="t('imageGeneration.edit.sourceAlt', { index: index + 1 })" class="h-full w-full object-contain" />
+                  <button
+                    type="button"
+                    class="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-md bg-black/60 text-white opacity-0 transition-opacity hover:bg-black/80 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-white group-hover:opacity-100"
+                    :title="t('imageGeneration.edit.removeSource')"
+                    @click="removeEditSource(index)"
+                  >
+                    <Icon name="x" size="xs" aria-hidden="true" />
+                    <span class="sr-only">{{ t('imageGeneration.edit.removeSource') }}</span>
+                  </button>
+                </figure>
+              </div>
+              <p v-if="editSourceError" class="mt-2 text-xs text-red-500" role="alert">{{ editSourceError }}</p>
             </div>
 
             <div>
@@ -239,10 +300,10 @@
               </div>
             </div>
 
-            <button type="button" class="btn btn-primary w-full" :disabled="generating || !currentModel" @click="generate">
-              <Icon v-if="!generating" name="sparkles" size="sm" aria-hidden="true" />
+            <button type="button" class="btn btn-primary w-full" :disabled="generating || !currentModel || !canSubmit" @click="submit">
+              <Icon v-if="!generating" :name="mode === 'edit' ? 'edit' : 'sparkles'" size="sm" aria-hidden="true" />
               <Icon v-else name="refresh" size="sm" class="animate-spin" aria-hidden="true" />
-              {{ generating ? t('imageGeneration.actions.generating') : t('imageGeneration.actions.generate') }}
+              {{ generating ? t(mode === 'edit' ? 'imageGeneration.actions.editing' : 'imageGeneration.actions.generating') : t(mode === 'edit' ? 'imageGeneration.actions.edit' : 'imageGeneration.actions.generate') }}
             </button>
           </div>
         </section>
@@ -270,7 +331,7 @@
           <div v-else-if="generationError" class="flex min-h-[400px] flex-1 flex-col items-center justify-center text-center">
             <Icon name="exclamationTriangle" size="xl" class="mb-4 text-amber-500" aria-hidden="true" />
             <p class="max-w-md text-sm text-red-600 dark:text-red-300" role="alert">{{ generationError }}</p>
-            <button type="button" class="btn btn-secondary mt-5" @click="generate">
+            <button type="button" class="btn btn-secondary mt-5" @click="submit">
               <Icon name="refresh" size="sm" aria-hidden="true" />
               {{ t('imageGeneration.actions.retry') }}
             </button>
@@ -305,6 +366,17 @@
                 >
                   <Icon name="download" size="sm" aria-hidden="true" />
                   <span class="sr-only">{{ t('imageGeneration.actions.download') }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="absolute right-14 top-3 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-black/60 text-white opacity-0 shadow transition-opacity hover:bg-black/75 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-white/80 group-hover:opacity-100"
+                  :title="t('imageGeneration.actions.useForEdit')"
+                  :disabled="sourceLoadingIndex === index"
+                  @click.stop="useImageForEdit(image, index)"
+                >
+                  <Icon v-if="sourceLoadingIndex !== index" name="edit" size="sm" aria-hidden="true" />
+                  <Icon v-else name="refresh" size="sm" class="animate-spin" aria-hidden="true" />
+                  <span class="sr-only">{{ t('imageGeneration.actions.useForEdit') }}</span>
                 </button>
               </div>
               <figcaption v-if="image.revised_prompt" class="border-t border-gray-100 px-3 py-2 text-xs text-gray-500 dark:border-dark-700 dark:text-dark-400">
@@ -357,6 +429,10 @@
             <Icon name="download" size="sm" aria-hidden="true" />
             {{ t('imageGeneration.actions.download') }}
           </button>
+          <button type="button" class="btn btn-secondary btn-sm" :disabled="sourceLoadingIndex === previewIndex" @click="previewImage && useImageForEdit(previewImage, previewIndex ?? 0)">
+            <Icon name="edit" size="sm" aria-hidden="true" />
+            {{ t('imageGeneration.actions.useForEdit') }}
+          </button>
         </div>
       </div>
     </BaseDialog>
@@ -371,7 +447,7 @@ import Icon from '@/components/icons/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import { sanitizeUrl } from '@/utils/url'
-import { generateImages, loadImageGenerationConfig, loadImageGenerationOptions, optimizeImagePrompt } from '../api/imageGeneration'
+import { editImages, generateImages, loadImageGenerationConfig, loadImageGenerationOptions, optimizeImagePrompt } from '../api/imageGeneration'
 import {
   imageSource,
   validateCustomImageSize,
@@ -379,6 +455,7 @@ import {
   type ImageGenerationBackground,
   type ImageGenerationFormat,
   type ImageGenerationGroupOption,
+  type ImageGenerationRequest,
   type ImageGenerationModelOption,
   type ImageGenerationModeration,
   type ImageGenerationQuality
@@ -388,6 +465,9 @@ import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 const MAX_PROMPT_LENGTH = 10_000
 const CUSTOM_SIZE_VALUE = '__custom__'
+const MAX_EDIT_FILES = 4
+const MAX_EDIT_FILE_BYTES = 20 * 1024 * 1024
+const EDIT_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 
 const groups = ref<ImageGenerationGroupOption[]>([])
 const loadingOptions = ref(false)
@@ -397,6 +477,11 @@ const generating = ref(false)
 const optimizing = ref(false)
 const promptError = ref('')
 const optimizationError = ref('')
+const mode = ref<'generate' | 'edit'>('generate')
+const editSources = ref<EditSourceImage[]>([])
+const editSourceError = ref('')
+const sourceLoadingIndex = ref<number | null>(null)
+const editFileInput = ref<HTMLInputElement | null>(null)
 
 const selectedGroupId = ref<number | null>(null)
 const selectedModel = ref('')
@@ -413,6 +498,12 @@ const customWidth = ref(2048)
 const customHeight = ref(2048)
 const images = ref<DisplayImage[]>([])
 const previewIndex = ref<number | null>(null)
+
+interface EditSourceImage {
+  file: File
+  src: string
+  objectUrl: boolean
+}
 
 let optionsController: AbortController | null = null
 let generationController: AbortController | null = null
@@ -442,6 +533,7 @@ const formatOptions = computed<SelectOption[]>(() => (currentModel.value?.output
 const backgroundOptions = computed<SelectOption[]>(() => (currentModel.value?.backgrounds ?? []).map((value) => ({ value, label: backgroundLabel(value) })))
 const moderationOptions = computed<SelectOption[]>(() => (currentModel.value?.moderations ?? []).map((value) => ({ value, label: moderationLabel(value) })))
 const maxGenerationCount = computed(() => Math.min(9, Math.max(1, currentModel.value?.max_n ?? 9)))
+const canSubmit = computed(() => mode.value === 'generate' || editSources.value.length > 0)
 const isCompressionVisible = computed(() => currentModel.value?.supports_compression !== false && (outputFormat.value === 'jpeg' || outputFormat.value === 'webp'))
 const customSizeError = computed(() => {
   const constraints = currentModel.value?.custom_size
@@ -578,6 +670,24 @@ function toDisplayImages(response: { data?: Array<{ b64_json?: string | null; ur
   })
 }
 
+function buildRequestPayload(trimmedPrompt: string): ImageGenerationRequest {
+  if (!selectedGroupId.value || !currentModel.value) {
+    throw new Error(t('imageGeneration.errors.noModel'))
+  }
+  return {
+    group_id: selectedGroupId.value,
+    model: currentModel.value.name,
+    prompt: trimmedPrompt,
+    n: count.value,
+    size: size.value === CUSTOM_SIZE_VALUE ? `${customWidth.value}x${customHeight.value}` : size.value,
+    quality: quality.value,
+    output_format: outputFormat.value,
+    ...(isCompressionVisible.value ? { output_compression: compression.value } : {}),
+    background: background.value,
+    moderation: moderation.value
+  }
+}
+
 async function generate(): Promise<void> {
   normalizeCount()
   generationError.value = ''
@@ -606,18 +716,7 @@ async function generate(): Promise<void> {
   generationController = controller
   generating.value = true
   try {
-    const payload = {
-      group_id: selectedGroupId.value,
-      model: currentModel.value.name,
-      prompt: trimmedPrompt,
-      n: count.value,
-      size: size.value === CUSTOM_SIZE_VALUE ? `${customWidth.value}x${customHeight.value}` : size.value,
-      quality: quality.value,
-      output_format: outputFormat.value,
-      ...(isCompressionVisible.value ? { output_compression: compression.value } : {}),
-      background: background.value,
-      moderation: moderation.value
-    }
+    const payload = buildRequestPayload(trimmedPrompt)
     const response = await generateImages(payload, { signal: controller.signal })
     const displayImages = toDisplayImages(response)
     if (displayImages.length === 0) {
@@ -634,6 +733,146 @@ async function generate(): Promise<void> {
       generationController = null
       generating.value = false
     }
+  }
+}
+
+async function edit(): Promise<void> {
+  normalizeCount()
+  generationError.value = ''
+  optimizationError.value = ''
+  editSourceError.value = ''
+  const trimmedPrompt = prompt.value.trim()
+  if (!trimmedPrompt) {
+    promptError.value = t('imageGeneration.validation.promptRequired')
+    return
+  }
+  if (trimmedPrompt.length > MAX_PROMPT_LENGTH) {
+    promptError.value = t('imageGeneration.validation.promptTooLong')
+    return
+  }
+  if (editSources.value.length === 0) {
+    editSourceError.value = t('imageGeneration.edit.sourceRequired')
+    return
+  }
+  promptError.value = ''
+  if (!selectedGroupId.value || !currentModel.value) {
+    generationError.value = t('imageGeneration.errors.noModel')
+    return
+  }
+  if (customSizeError.value) {
+    generationError.value = t(`imageGeneration.validation.customSize.${customSizeError.value}`)
+    return
+  }
+
+  generationController?.abort()
+  const controller = new AbortController()
+  generationController = controller
+  generating.value = true
+  try {
+    const payload = buildRequestPayload(trimmedPrompt)
+    const response = await editImages(payload, editSources.value.map((source) => source.file), { signal: controller.signal })
+    const displayImages = toDisplayImages(response)
+    if (displayImages.length === 0) {
+      generationError.value = t('imageGeneration.errors.emptyResponse')
+    } else {
+      images.value = displayImages
+    }
+  } catch (cause) {
+    if (!controller.signal.aborted) {
+      generationError.value = errorMessage(cause, t('imageGeneration.errors.edit'))
+    }
+  } finally {
+    if (generationController === controller) {
+      generationController = null
+      generating.value = false
+    }
+  }
+}
+
+async function submit(): Promise<void> {
+  if (mode.value === 'edit') {
+    await edit()
+    return
+  }
+  await generate()
+}
+
+function normalizedImageType(value: string): string {
+  const type = value.toLowerCase().split(';', 1)[0].trim()
+  return type === 'image/jpg' ? 'image/jpeg' : type
+}
+
+function addEditSources(files: File[], previews?: string[]): void {
+  editSourceError.value = ''
+  const remaining = MAX_EDIT_FILES - editSources.value.length
+  if (remaining <= 0) {
+    editSourceError.value = t('imageGeneration.edit.tooManySources', { max: MAX_EDIT_FILES })
+    return
+  }
+  const accepted = files.slice(0, remaining).flatMap((file, index): EditSourceImage[] => {
+    const type = normalizedImageType(file.type)
+    if (!EDIT_IMAGE_TYPES.has(type)) {
+      editSourceError.value = t('imageGeneration.edit.invalidSourceType')
+      return []
+    }
+    if (file.size <= 0 || file.size > MAX_EDIT_FILE_BYTES) {
+      editSourceError.value = t('imageGeneration.edit.sourceTooLarge')
+      return []
+    }
+    return [{
+      file,
+      src: previews?.[index] || URL.createObjectURL(file),
+      objectUrl: !previews?.[index]
+    }]
+  })
+  editSources.value = [...editSources.value, ...accepted]
+  if (files.length > remaining) {
+    editSourceError.value = t('imageGeneration.edit.tooManySources', { max: MAX_EDIT_FILES })
+  }
+}
+
+function openEditFilePicker(): void {
+  editFileInput.value?.click()
+}
+
+function handleEditFiles(event: Event): void {
+  const input = event.target as HTMLInputElement
+  addEditSources(Array.from(input.files ?? []))
+  input.value = ''
+}
+
+function removeEditSource(index: number): void {
+  const source = editSources.value[index]
+  if (!source) return
+  if (source.objectUrl) URL.revokeObjectURL(source.src)
+  editSources.value.splice(index, 1)
+  editSourceError.value = ''
+}
+
+async function useImageForEdit(image: DisplayImage, index: number): Promise<void> {
+  if (sourceLoadingIndex.value !== null || editSources.value.length >= MAX_EDIT_FILES) {
+    if (editSources.value.length >= MAX_EDIT_FILES) {
+      editSourceError.value = t('imageGeneration.edit.tooManySources', { max: MAX_EDIT_FILES })
+    }
+    return
+  }
+  sourceLoadingIndex.value = index
+  editSourceError.value = ''
+  try {
+    const response = await fetch(image.src, { credentials: 'omit' })
+    if (!response.ok) throw new Error('source image unavailable')
+    const blob = await response.blob()
+    const type = normalizedImageType(blob.type || image.mime_type || `image/${outputFormat.value}`)
+    if (!EDIT_IMAGE_TYPES.has(type)) throw new Error('unsupported source image type')
+    if (blob.size <= 0 || blob.size > MAX_EDIT_FILE_BYTES) throw new Error('source image is too large')
+    const file = new File([blob], image.downloadName, { type })
+    addEditSources([file], [image.src])
+    mode.value = 'edit'
+    closePreview()
+  } catch {
+    editSourceError.value = t('imageGeneration.edit.sourceLoadFailed')
+  } finally {
+    sourceLoadingIndex.value = null
   }
 }
 
@@ -726,5 +965,8 @@ onUnmounted(() => {
   optionsController?.abort()
   generationController?.abort()
   optimizationController?.abort()
+  editSources.value.forEach((source) => {
+    if (source.objectUrl) URL.revokeObjectURL(source.src)
+  })
 })
 </script>

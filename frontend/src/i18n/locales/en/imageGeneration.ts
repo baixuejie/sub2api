@@ -21,6 +21,10 @@ export default {
       background: 'Background',
       moderation: 'Moderation'
     },
+    modes: {
+      generate: 'Text to image',
+      edit: 'Image to image'
+    },
     values: {
       quality: {
         auto: 'Auto',
@@ -50,8 +54,11 @@ export default {
       retry: 'Retry',
       generate: 'Generate image',
       generating: 'Generating...',
+      edit: 'Edit image',
+      editing: 'Editing...',
       clear: 'Clear results',
       download: 'Download image',
+      useForEdit: 'Use for image editing',
       settings: 'Settings',
       optimizePrompt: 'Optimize prompt',
       optimizing: 'Optimizing...',
@@ -66,6 +73,17 @@ export default {
       previewTitle: 'Image preview',
       previous: 'Previous image',
       next: 'Next image'
+    },
+    edit: {
+      source: 'Reference images',
+      chooseFiles: 'Choose images',
+      sourceAlt: 'Reference image {index}',
+      removeSource: 'Remove reference image',
+      sourceRequired: 'Choose at least one reference image.',
+      invalidSourceType: 'Only PNG, JPEG, or WebP images are supported.',
+      sourceTooLarge: 'Each reference image must be 20 MB or smaller.',
+      tooManySources: 'Choose at most {max} reference images.',
+      sourceLoadFailed: 'Unable to read this generated image. Download it and upload it again.'
     },
     empty: {
       title: 'No image groups available',
@@ -87,6 +105,7 @@ export default {
       noModel: 'Select an available group and model.',
       emptyResponse: 'The server returned no displayable image.',
       generate: 'Image generation failed. Try again later.',
+      edit: 'Image editing failed. Try again later.',
       optimize: 'Prompt optimization failed. Try again later.',
       optimizeEmpty: 'The optimizer returned an empty prompt.'
     },

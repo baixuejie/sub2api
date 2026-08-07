@@ -5,6 +5,7 @@ import {
   normalizeImageGenerationOptions,
   validateCustomImageSize
 } from '../types/imageGeneration'
+import { buildImageEditFormData } from '../api/imageGeneration'
 
 describe('image-generation extension contracts', () => {
   it('normalizes capabilities and drops malformed groups or models', () => {
@@ -93,5 +94,27 @@ describe('image-generation extension contracts', () => {
   it('uses one image when the settings quantity is missing or invalid', () => {
     expect(normalizeImageGenerationConfigOptions({ config: { default_n: 0 } }).config.default_n).toBe(1)
     expect(normalizeImageGenerationConfigOptions({ config: { default_n: 'not-a-number' } }).config.default_n).toBe(1)
+  })
+
+  it('builds an image-edit multipart payload without browser-side credentials', () => {
+    const file = new File([new Uint8Array([1, 2, 3])], 'source.png', { type: 'image/png' })
+    const form = buildImageEditFormData({
+      group_id: 7,
+      model: 'gpt-image-2',
+      prompt: 'change the sky',
+      n: 2,
+      size: '1024x1024',
+      quality: 'high',
+      output_format: 'png',
+      background: 'auto',
+      moderation: 'auto'
+    }, [file])
+
+    expect(form.get('group_id')).toBe('7')
+    expect(form.get('model')).toBe('gpt-image-2')
+    expect(form.get('prompt')).toBe('change the sky')
+    expect(form.getAll('image')).toEqual([file])
+    expect([...form.keys()]).not.toContain('api_key')
+    expect([...form.keys()]).not.toContain('base_url')
   })
 })

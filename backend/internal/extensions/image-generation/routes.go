@@ -36,6 +36,11 @@ func RegisterRoutes(
 		generate.Use(gin.HandlerFunc(apiKeyAuth))
 		generate.POST("/generate", h.Generate)
 
+		edit := route.Group("")
+		edit.Use(h.PrepareEditAPIKey())
+		edit.Use(gin.HandlerFunc(apiKeyAuth))
+		edit.POST("/edit", h.Edit)
+
 		optimize := route.Group("")
 		optimize.Use(h.PrepareOptimizationAPIKey())
 		optimize.Use(gin.HandlerFunc(apiKeyAuth))

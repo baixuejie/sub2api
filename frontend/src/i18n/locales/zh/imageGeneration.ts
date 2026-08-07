@@ -21,6 +21,10 @@ export default {
       background: '背景',
       moderation: '内容审核'
     },
+    modes: {
+      generate: '文生图',
+      edit: '图生图'
+    },
     values: {
       quality: {
         auto: '自动',
@@ -50,8 +54,11 @@ export default {
       retry: '重试',
       generate: '生成图片',
       generating: '生成中...',
+      edit: '修改图片',
+      editing: '修改中...',
       clear: '清空结果',
       download: '下载图片',
+      useForEdit: '用于图生图',
       settings: '设置',
       optimizePrompt: '优化提示词',
       optimizing: '优化中...',
@@ -66,6 +73,17 @@ export default {
       previewTitle: '图片预览',
       previous: '上一张',
       next: '下一张'
+    },
+    edit: {
+      source: '参考图片',
+      chooseFiles: '选择图片',
+      sourceAlt: '参考图片 {index}',
+      removeSource: '移除参考图',
+      sourceRequired: '请先选择至少一张参考图片。',
+      invalidSourceType: '仅支持 PNG、JPEG 或 WebP 图片。',
+      sourceTooLarge: '单张参考图片不能超过 20 MB。',
+      tooManySources: '最多选择 {max} 张参考图片。',
+      sourceLoadFailed: '无法读取这张生成图片，请先下载后再上传。'
     },
     empty: {
       title: '暂无可用图片分组',
@@ -87,6 +105,7 @@ export default {
       noModel: '请选择可用的分组和模型。',
       emptyResponse: '服务端未返回可显示的图片。',
       generate: '图片生成失败，请稍后重试。',
+      edit: '图片修改失败，请稍后重试。',
       optimize: '提示词优化失败，请稍后重试。',
       optimizeEmpty: '优化器返回了空提示词。'
     },

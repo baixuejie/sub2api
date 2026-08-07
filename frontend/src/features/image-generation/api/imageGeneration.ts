@@ -4,6 +4,7 @@ import {
   normalizeImageGenerationConfigOptions,
   type ImageGenerationConfig,
   type ImageGenerationConfigOptionsResponse,
+  type ImageEditRequest,
   type ImageGenerationOptionsResponse,
   type ImageGenerationRequest,
   type ImageGenerationResponse,
@@ -37,22 +38,44 @@ export async function generateImages(
     timeout: IMAGE_GENERATION_TIMEOUT_MS
   })
 
-  if (Array.isArray(data)) {
-    return { data: data as GeneratedImage[] }
+  return normalizeImageGenerationResponse(data)
+}
+
+/**
+ * Submit one or more reference images to the authenticated Extension.
+ * FormData is constructed here so the browser never needs an upstream key.
+ */
+export async function editImages(
+  payload: ImageEditRequest,
+  files: File[],
+  options?: { signal?: AbortSignal }
+): Promise<ImageGenerationResponse> {
+  const formData = buildImageEditFormData(payload, files)
+
+  const { data } = await apiClient.post<unknown>('/image-generation/edit', formData, {
+    signal: options?.signal,
+    timeout: IMAGE_GENERATION_TIMEOUT_MS,
+    headers: { 'Content-Type': undefined }
+  })
+  return normalizeImageGenerationResponse(data)
+}
+
+export function buildImageEditFormData(payload: ImageEditRequest, files: File[]): FormData {
+  const formData = new FormData()
+  formData.append('group_id', String(payload.group_id))
+  formData.append('model', payload.model)
+  formData.append('prompt', payload.prompt)
+  formData.append('n', String(payload.n))
+  formData.append('size', payload.size)
+  formData.append('quality', payload.quality)
+  formData.append('output_format', payload.output_format)
+  if (typeof payload.output_compression === 'number') {
+    formData.append('output_compression', String(payload.output_compression))
   }
-  if (data && typeof data === 'object') {
-    const response = data as Record<string, unknown>
-    const images = Array.isArray(response.data)
-      ? response.data as GeneratedImage[]
-      : Array.isArray(response.images)
-        ? response.images as GeneratedImage[]
-        : []
-    return {
-      ...(typeof response.created === 'number' ? { created: response.created } : {}),
-      data: images
-    }
-  }
-  return { data: [] }
+  formData.append('background', payload.background)
+  formData.append('moderation', payload.moderation)
+  files.forEach((file) => formData.append('image', file, file.name || 'image.png'))
+  return formData
 }
 
 export async function loadImageGenerationConfig(options?: { signal?: AbortSignal }): Promise<ImageGenerationConfigOptionsResponse> {
@@ -90,9 +113,29 @@ export async function optimizeImagePrompt(
 export const imageGenerationAPI = {
   loadOptions: loadImageGenerationOptions,
   generate: generateImages,
+  edit: editImages,
   loadConfig: loadImageGenerationConfig,
   saveConfig: saveImageGenerationConfig,
   optimize: optimizeImagePrompt
+}
+
+function normalizeImageGenerationResponse(value: unknown): ImageGenerationResponse {
+  if (Array.isArray(value)) {
+    return { data: value as GeneratedImage[] }
+  }
+  if (value && typeof value === 'object') {
+    const response = value as Record<string, unknown>
+    const images = Array.isArray(response.data)
+      ? response.data as GeneratedImage[]
+      : Array.isArray(response.images)
+        ? response.images as GeneratedImage[]
+        : []
+    return {
+      ...(typeof response.created === 'number' ? { created: response.created } : {}),
+      data: images
+    }
+  }
+  return { data: [] }
 }
 
 export default imageGenerationAPI

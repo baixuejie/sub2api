@@ -89,6 +89,9 @@ export interface ImageGenerationResponse {
   images?: GeneratedImage[]
 }
 
+/** Multipart payload fields shared by generation and image editing. */
+export type ImageEditRequest = ImageGenerationRequest
+
 export interface ImageGenerationConfig {
   version: number
   prompt_group_id: number
