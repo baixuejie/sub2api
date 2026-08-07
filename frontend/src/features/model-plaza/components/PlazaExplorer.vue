@@ -109,7 +109,7 @@
               :key="`${activeGroup.id}-${model.name}`"
               :group="activeGroup"
               :model="model"
-              :recharge-multiplier="props.response?.balance_recharge_multiplier ?? 1"
+              :recharge-multiplier="props.response?.balance_recharge_multiplier ?? 10"
               :show-official-price="showOfficialPrice"
             />
           </div>

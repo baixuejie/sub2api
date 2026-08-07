@@ -129,7 +129,7 @@ const props = withDefaults(defineProps<{
   rechargeMultiplier?: number
   showOfficialPrice?: boolean
 }>(), {
-  rechargeMultiplier: 1,
+  rechargeMultiplier: 10,
   showOfficialPrice: false
 })
 

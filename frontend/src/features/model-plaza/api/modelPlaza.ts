@@ -10,9 +10,9 @@ export async function loadModelPlaza(options?: { signal?: AbortSignal }): Promis
   const paymentRequest = paymentAPI.getConfig()
   const [plaza, payment] = await Promise.allSettled([plazaRequest, paymentRequest])
   if (plaza.status === 'rejected') throw plaza.reason
-  const multiplier = payment.status === 'fulfilled' ? Number(payment.value.data?.balance_recharge_multiplier) : 1
+  const multiplier = payment.status === 'fulfilled' ? Number(payment.value.data?.balance_recharge_multiplier) : 10
   return {
     ...plaza.value.data,
-    balance_recharge_multiplier: Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1
+    balance_recharge_multiplier: Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 10
   }
 }

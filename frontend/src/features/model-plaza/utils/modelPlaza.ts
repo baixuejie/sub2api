@@ -46,7 +46,7 @@ export function effectiveModelRate(group: ModelPlazaGroup, model: PlazaModel): n
 export function paidTokenPrice(
   group: ModelPlazaGroup,
   value: number | null | undefined,
-  rechargeMultiplier = 1
+  rechargeMultiplier = 10
 ): string {
   if (value == null) return '-'
   return formatCny(value * effectiveGroupRate(group), PER_MILLION, rechargeMultiplier)
@@ -56,7 +56,7 @@ export function paidRequestPrice(
   group: ModelPlazaGroup,
   model: PlazaModel,
   value: number | null | undefined,
-  rechargeMultiplier = 1
+  rechargeMultiplier = 10
 ): string {
   if (value == null) return '-'
   return formatCny(value * effectiveModelRate(group, model), 1, rechargeMultiplier)
@@ -159,6 +159,6 @@ function trimNumber(value: number): string {
 
 /** 将 USD 额度价格换算为用户实际支付的人民币价格。 */
 function formatCny(value: number, scale: number, rechargeMultiplier: number): string {
-  const multiplier = Number.isFinite(rechargeMultiplier) && rechargeMultiplier > 0 ? rechargeMultiplier : 1
+  const multiplier = Number.isFinite(rechargeMultiplier) && rechargeMultiplier > 0 ? rechargeMultiplier : 10
   return formatScaled(value / multiplier, scale, MIN_DECIMALS).replace(/^\$/, '¥')
 }
