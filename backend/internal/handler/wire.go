@@ -2,6 +2,8 @@ package handler
 
 import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	imagegenerationhandler "github.com/Wei-Shaw/sub2api/internal/extensions/image-generation/handler"
+	imagegenerationservice "github.com/Wei-Shaw/sub2api/internal/extensions/image-generation/service"
 	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
 	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -144,6 +146,17 @@ func ProvideBatchImageHandler(
 	return h
 }
 
+// ProvideImageGenerationHandler keeps the extension dependent on the public
+// Images method rather than on OpenAIGatewayHandler's private implementation.
+func ProvideImageGenerationHandler(
+	channelService *service.ChannelService,
+	apiKeyService *service.APIKeyService,
+	openAI *OpenAIGatewayHandler,
+) *imagegenerationhandler.Handler {
+	policy := imagegenerationservice.NewService(apiKeyService, channelService, apiKeyService)
+	return imagegenerationhandler.NewHandler(policy, openAI)
+}
+
 // ProvideSystemHandler creates admin.SystemHandler with UpdateService
 func ProvideSystemHandler(updateService *service.UpdateService, lockService *service.SystemOperationLockService) *admin.SystemHandler {
 	return admin.NewSystemHandler(updateService, lockService)
@@ -187,6 +200,7 @@ func ProvideHandlers(
 	modelPlazaHandler *ModelPlazaHandler,
 	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
+	imageGenerationHandler *imagegenerationhandler.Handler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
@@ -211,6 +225,7 @@ func ProvideHandlers(
 		ModelPlaza:       modelPlazaHandler,
 		AsyncImage:       asyncImageHandler,
 		BatchImage:       batchImageHandler,
+		ImageGeneration:  imageGenerationHandler,
 	}
 }
 
@@ -236,6 +251,7 @@ var ProviderSet = wire.NewSet(
 	NewModelPlazaHandler,
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,
+	ProvideImageGenerationHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,
