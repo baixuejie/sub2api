@@ -28,9 +28,6 @@ export interface PlazaStats {
 const PER_MILLION = 1_000_000
 const MIN_DECIMALS = 2
 
-/** 充值余额的计价单位：每充值 1 元人民币，增加 10 USD 额度。 */
-export const USD_CREDIT_PER_CNY = 10
-
 export function effectiveGroupRate(group: ModelPlazaGroup): number {
   return group.user_rate_multiplier ?? group.rate_multiplier
 }
@@ -48,19 +45,21 @@ export function effectiveModelRate(group: ModelPlazaGroup, model: PlazaModel): n
 
 export function paidTokenPrice(
   group: ModelPlazaGroup,
-  value: number | null | undefined
+  value: number | null | undefined,
+  rechargeMultiplier = 1
 ): string {
   if (value == null) return '-'
-  return formatCny(value * effectiveGroupRate(group), PER_MILLION)
+  return formatCny(value * effectiveGroupRate(group), PER_MILLION, rechargeMultiplier)
 }
 
 export function paidRequestPrice(
   group: ModelPlazaGroup,
   model: PlazaModel,
-  value: number | null | undefined
+  value: number | null | undefined,
+  rechargeMultiplier = 1
 ): string {
   if (value == null) return '-'
-  return formatCny(value * effectiveModelRate(group, model), 1)
+  return formatCny(value * effectiveModelRate(group, model), 1, rechargeMultiplier)
 }
 
 export function officialTokenPrice(value: number | null | undefined): string {
@@ -159,6 +158,7 @@ function trimNumber(value: number): string {
 }
 
 /** 将 USD 额度价格换算为用户实际支付的人民币价格。 */
-function formatCny(value: number, scale: number): string {
-  return formatScaled(value / USD_CREDIT_PER_CNY, scale, MIN_DECIMALS).replace(/^\$/, '¥')
+function formatCny(value: number, scale: number, rechargeMultiplier: number): string {
+  const multiplier = Number.isFinite(rechargeMultiplier) && rechargeMultiplier > 0 ? rechargeMultiplier : 1
+  return formatScaled(value / multiplier, scale, MIN_DECIMALS).replace(/^\$/, '¥')
 }

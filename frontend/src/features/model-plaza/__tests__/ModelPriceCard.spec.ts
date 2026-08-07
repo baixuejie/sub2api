@@ -58,11 +58,12 @@ function group(models: PlazaModel[]): ModelPlazaGroup {
   }
 }
 
-function mountCard(model: PlazaModel, showOfficialPrice = false) {
+function mountCard(model: PlazaModel, showOfficialPrice = false, rechargeMultiplier = 10) {
   return mount(ModelPriceCard, {
     props: {
       group: group([model]),
       model,
+      rechargeMultiplier,
       showOfficialPrice
     },
     global: {
@@ -75,14 +76,20 @@ function mountCard(model: PlazaModel, showOfficialPrice = false) {
 }
 
 describe('ModelPriceCard price modes', () => {
-  it('shows the actual CNY price by default using the 1 CNY to 10 USD credit ratio', () => {
-    const wrapper = mountCard(tokenModel())
+  it('shows the actual CNY price using the configured recharge ratio', () => {
+    const wrapper = mountCard(tokenModel(), false, 10)
 
     expect(wrapper.text()).toContain('实际价格（人民币）')
     expect(wrapper.text()).toContain('¥0.15')
     expect(wrapper.text()).toContain('¥0.75')
     expect(wrapper.text()).toContain('¥ / 1M token')
     expect(wrapper.text()).not.toContain('$3.00')
+  })
+
+  it('updates actual prices when the recharge ratio changes', () => {
+    const wrapper = mountCard(tokenModel(), false, 5)
+    expect(wrapper.text()).toContain('¥0.30')
+    expect(wrapper.text()).toContain('¥1.50')
   })
 
   it('switches token models to the official USD reference price', () => {

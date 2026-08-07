@@ -59,4 +59,5 @@ export interface ModelPlazaGroup {
 export interface ModelPlazaResponse {
   description: string
   groups: ModelPlazaGroup[]
+  balance_recharge_multiplier: number
 }

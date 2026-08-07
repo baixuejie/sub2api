@@ -126,8 +126,10 @@ import {
 const props = withDefaults(defineProps<{
   group: ModelPlazaGroup
   model: PlazaModel
+  rechargeMultiplier?: number
   showOfficialPrice?: boolean
 }>(), {
+  rechargeMultiplier: 1,
   showOfficialPrice: false
 })
 
@@ -192,7 +194,7 @@ function tokenPrice(
     return officialPrice(field)
   }
   const value = interval ? interval[field] : props.model.pricing?.[field]
-  return paidTokenPrice(props.group, value)
+  return paidTokenPrice(props.group, value, props.rechargeMultiplier)
 }
 
 function officialPrice(field: keyof OfficialModelPricing): string {
@@ -201,7 +203,7 @@ function officialPrice(field: keyof OfficialModelPricing): string {
 
 function requestPrice(interval: ModelPricingInterval | null): string {
   const value = interval?.per_request_price ?? props.model.pricing?.per_request_price
-  return paidRequestPrice(props.group, props.model, value)
+  return paidRequestPrice(props.group, props.model, value, props.rechargeMultiplier)
 }
 
 function hasDisplayCache(interval: ModelPricingInterval | null): boolean {
