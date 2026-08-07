@@ -192,35 +192,50 @@ func (s *Service) buildConfigCatalog(ctx context.Context, userID int64) (*config
 		if group == nil || !group.IsActive() || group.Platform != core.PlatformOpenAI {
 			continue
 		}
-		plazaGroup, ok := plazaByID[group.ID]
-		if !ok {
-			continue
-		}
 		imageOption := ConfigGroupOption{ID: group.ID, Name: group.Name, Description: group.Description, Platform: group.Platform}
 		promptOption := imageOption
 		imageSeen := make(map[string]struct{})
 		promptSeen := make(map[string]struct{})
-		for _, model := range plazaGroup.Models {
-			if model.Platform != core.PlatformOpenAI {
-				continue
-			}
-			name := strings.TrimSpace(model.Name)
-			if name == "" {
-				continue
-			}
-			if core.IsGPTImageGenerationModel(name) {
-				if !group.AllowImageGeneration {
+		plazaGroup, plazaOK := plazaByID[group.ID]
+		if plazaOK {
+			for _, model := range plazaGroup.Models {
+				if model.Platform != core.PlatformOpenAI {
+					continue
+				}
+				name := strings.TrimSpace(model.Name)
+				if name == "" {
+					continue
+				}
+				if core.IsGPTImageGenerationModel(name) {
+					if !group.AllowImageGeneration {
+						continue
+					}
+					key := strings.ToLower(name)
+					if _, seen := imageSeen[key]; !seen {
+						imageSeen[key] = struct{}{}
+						imageOption.Models = append(imageOption.Models, ConfigModelOption{Name: name})
+					}
 					continue
 				}
 				key := strings.ToLower(name)
-				if _, seen := imageSeen[key]; !seen {
-					imageSeen[key] = struct{}{}
-					imageOption.Models = append(imageOption.Models, ConfigModelOption{Name: name})
+				if _, seen := promptSeen[key]; !seen {
+					promptSeen[key] = struct{}{}
+					promptOption.Models = append(promptOption.Models, ConfigModelOption{Name: name})
 				}
-				continue
 			}
-			key := strings.ToLower(name)
-			if _, seen := promptSeen[key]; !seen {
+		}
+		// A text-only OpenAI group may have no channel-backed plaza models. Its
+		// saved group model definition is still usable for prompt optimization.
+		if len(promptSeen) == 0 && !group.AllowImageGeneration {
+			for _, name := range group.ModelsListConfig.Models {
+				name = strings.TrimSpace(name)
+				if name == "" || core.IsGPTImageGenerationModel(name) {
+					continue
+				}
+				key := strings.ToLower(name)
+				if _, seen := promptSeen[key]; seen {
+					continue
+				}
 				promptSeen[key] = struct{}{}
 				promptOption.Models = append(promptOption.Models, ConfigModelOption{Name: name})
 			}

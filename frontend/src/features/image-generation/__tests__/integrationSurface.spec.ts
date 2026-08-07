@@ -19,6 +19,8 @@ describe('Image Generation extension integration surface', () => {
     expect(api).toContain("'/image-generation/optimize'")
     expect(api).toContain('timeout: IMAGE_GENERATION_TIMEOUT_MS')
     expect(view).not.toMatch(/PromptTemplate|promptTemplate|模板|AcademicPromptPicker/)
+    expect(view).toContain('grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]')
+    expect(view).toContain('card flex h-full min-h-[520px] flex-col')
   })
 
   it('exposes an authenticated route and regular-user menu entry', () => {

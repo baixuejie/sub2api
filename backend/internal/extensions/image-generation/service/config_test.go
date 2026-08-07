@@ -116,6 +116,33 @@ func TestImageGenerationConfigDefaultsAndNeverReturnsPlaintextKeys(t *testing.T)
 	require.NotContains(t, string(raw), "sk-secondary-secret")
 }
 
+func TestImageGenerationConfigUsesTextGroupDefinitionWhenGroupIsNotInPlaza(t *testing.T) {
+	group := imageGroup(4, "gpt-plus", false)
+	group.ModelsListConfig = core.GroupModelsListConfig{
+		Models: []string{"gpt-4.1-mini", "gpt-image-2", ""},
+	}
+	key := configTestKey(20, 42, 4, "Prompt", "sk-prompt-secret-1234", false)
+	keys := &configFakeKeys{
+		listed:   []core.APIKey{{ID: key.ID, UserID: key.UserID, GroupID: key.GroupID, Status: key.Status}},
+		hydrated: map[int64]*core.APIKey{key.ID: key},
+	}
+	svc := NewService(
+		&fakeGroups{groups: []core.Group{group}},
+		&fakePlaza{groups: nil},
+		keys,
+		&configFakeSettings{},
+	)
+
+	options, err := svc.GetConfigOptions(context.Background(), 42)
+	require.NoError(t, err)
+	require.Len(t, options.PromptGroups, 1)
+	require.Equal(t, int64(4), options.PromptGroups[0].ID)
+	require.Equal(t, []ConfigModelOption{{Name: "gpt-4.1-mini"}}, options.PromptGroups[0].Models)
+	require.Equal(t, int64(4), options.Config.PromptGroupID)
+	require.Equal(t, "gpt-4.1-mini", options.Config.PromptModel)
+	require.Equal(t, int64(20), options.Config.PromptAPIKeyID)
+}
+
 func TestImageGenerationConfigPersistsOnlyIDsAndUsesPreferredImageKey(t *testing.T) {
 	settings := &configFakeSettings{}
 	svc, keys := newConfigTestService(settings)

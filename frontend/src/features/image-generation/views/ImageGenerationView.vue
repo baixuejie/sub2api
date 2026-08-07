@@ -53,7 +53,7 @@
         </button>
       </div>
 
-      <div v-else class="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+      <div v-else class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
         <!-- Prompt and model controls -->
         <section class="card p-5 sm:p-6">
           <div class="mb-5 flex items-center gap-2 border-b border-gray-100 pb-4 dark:border-dark-700">
@@ -248,7 +248,7 @@
         </section>
 
         <!-- Generated images -->
-        <section class="card min-h-[520px] p-5 sm:p-6">
+        <section class="card flex h-full min-h-[520px] flex-col p-5 sm:p-6">
           <div class="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4 dark:border-dark-700">
             <div class="flex items-center gap-2">
               <Icon name="sparkles" size="md" class="text-primary-500" aria-hidden="true" />
@@ -261,13 +261,13 @@
             </button>
           </div>
 
-          <div v-if="generating" class="flex min-h-[400px] flex-col items-center justify-center text-center">
+          <div v-if="generating" class="flex min-h-[400px] flex-1 flex-col items-center justify-center text-center">
             <LoadingSpinner size="lg" />
             <p class="mt-4 text-sm text-gray-600 dark:text-gray-300">{{ t('imageGeneration.results.generating') }}</p>
             <p class="mt-1 text-xs text-gray-400 dark:text-dark-500">{{ t('imageGeneration.results.generatingHint') }}</p>
           </div>
 
-          <div v-else-if="generationError" class="flex min-h-[400px] flex-col items-center justify-center text-center">
+          <div v-else-if="generationError" class="flex min-h-[400px] flex-1 flex-col items-center justify-center text-center">
             <Icon name="exclamationTriangle" size="xl" class="mb-4 text-amber-500" aria-hidden="true" />
             <p class="max-w-md text-sm text-red-600 dark:text-red-300" role="alert">{{ generationError }}</p>
             <button type="button" class="btn btn-secondary mt-5" @click="generate">
@@ -276,7 +276,7 @@
             </button>
           </div>
 
-          <div v-else-if="images.length === 0" class="flex min-h-[400px] flex-col items-center justify-center text-center">
+          <div v-else-if="images.length === 0" class="flex min-h-[400px] flex-1 flex-col items-center justify-center text-center">
             <Icon name="sparkles" size="xl" class="mb-4 text-gray-300 dark:text-dark-600" aria-hidden="true" />
             <p class="text-sm text-gray-500 dark:text-dark-400">{{ t('imageGeneration.results.empty') }}</p>
           </div>
