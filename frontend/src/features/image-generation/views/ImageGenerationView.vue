@@ -345,7 +345,7 @@
           <div v-else :class="['grid gap-4', imageGridClass]">
             <figure v-for="(image, index) in images" :key="`${image.src}-${index}`" class="group overflow-hidden rounded-xl border border-gray-100 bg-gray-50 dark:border-dark-700 dark:bg-dark-900/50">
               <div
-                class="relative flex aspect-square cursor-zoom-in items-center justify-center overflow-hidden bg-gray-100 dark:bg-dark-900"
+                class="relative flex h-64 cursor-zoom-in items-center justify-center overflow-hidden bg-gray-100 dark:bg-dark-900 sm:h-72 lg:h-80"
                 role="button"
                 tabindex="0"
                 @click="openPreview(index)"
@@ -399,7 +399,7 @@
       @close="closePreview"
     >
       <div v-if="previewImage" class="flex flex-col items-center gap-4">
-        <div class="relative flex min-h-[50vh] w-full items-center justify-center rounded-lg bg-gray-950 p-2">
+        <div class="relative flex h-[min(60vh,32rem)] w-full items-center justify-center rounded-lg bg-gray-950 p-2">
           <img
             :src="previewImage.src"
             :alt="t('imageGeneration.results.imageAlt', { index: (previewIndex ?? 0) + 1 })"
@@ -464,8 +464,11 @@ import {
   type ImageGenerationQuality
 } from '../types/imageGeneration'
 import { useI18n } from 'vue-i18n'
+import { useAuthStore } from '@/stores/auth'
+import { clearCachedImages, loadCachedImages, replaceCachedImages } from '../utils/imageCache'
 
 const { t } = useI18n()
+const authStore = useAuthStore()
 const MAX_PROMPT_LENGTH = 10_000
 const CUSTOM_SIZE_VALUE = '__custom__'
 const MAX_EDIT_FILES = 4
@@ -551,6 +554,8 @@ const imageGridClass = computed(() => {
   if (images.value.length >= 5) return 'grid-cols-3'
   return 'grid-cols-2'
 })
+
+const cacheOwner = computed(() => authStore.user?.id ? String(authStore.user.id) : '')
 
 function qualityLabel(value: string): string {
   return t(`imageGeneration.values.quality.${value}`)
@@ -677,6 +682,39 @@ function disposeDisplayImages(items: DisplayImage[]): void {
   })
 }
 
+function restoreCachedImages(): void {
+  const owner = cacheOwner.value
+  if (!owner) return
+  void loadCachedImages(owner).then((cached) => {
+    if (images.value.length || !cached.length) return
+    images.value = cached.map((image) => {
+      const src = URL.createObjectURL(image.blob)
+      return {
+        src,
+        blob: image.blob,
+        objectUrl: true,
+        mime_type: image.mimeType,
+        revised_prompt: image.revisedPrompt,
+        downloadName: image.downloadName
+      }
+    })
+  }).catch(() => undefined)
+}
+
+function persistDisplayImages(items: DisplayImage[]): void {
+  const owner = cacheOwner.value
+  const cached = items.filter((image): image is DisplayImage & { blob: Blob } => !!image.blob)
+  if (!owner || !cached.length) return
+  void replaceCachedImages(owner, cached.map((image, index) => ({
+    owner,
+    blob: image.blob,
+    mimeType: image.mime_type || image.blob.type || 'image/png',
+    revisedPrompt: image.revised_prompt,
+    downloadName: image.downloadName,
+    createdAt: Date.now() + index
+  }))).catch(() => undefined)
+}
+
 function toDisplayImages(response: { data?: Array<{ b64_json?: string | null; url?: string | null; revised_prompt?: string | null; mime_type?: string | null }> }): DisplayImage[] {
   return (response.data ?? []).flatMap((image, index): DisplayImage[] => {
     const extension = outputFormat.value === 'jpeg' ? 'jpg' : outputFormat.value
@@ -752,6 +790,7 @@ async function generate(): Promise<void> {
     } else {
       disposeDisplayImages(images.value)
       images.value = displayImages
+      persistDisplayImages(displayImages)
     }
   } catch (cause) {
     if (!controller.signal.aborted) {
@@ -806,6 +845,7 @@ async function edit(): Promise<void> {
     } else {
       disposeDisplayImages(images.value)
       images.value = displayImages
+      persistDisplayImages(displayImages)
     }
   } catch (cause) {
     if (!controller.signal.aborted) {
@@ -944,6 +984,7 @@ function restorePreviousPrompt(): void {
 function clearResults(): void {
   disposeDisplayImages(images.value)
   images.value = []
+  void clearCachedImages(cacheOwner.value).catch(() => undefined)
   generationError.value = ''
   closePreview()
 }
@@ -999,6 +1040,7 @@ async function fetchImageBlob(image: DisplayImage): Promise<Blob> {
 
 onMounted(() => {
   void loadOptions()
+  restoreCachedImages()
 })
 
 onUnmounted(() => {
