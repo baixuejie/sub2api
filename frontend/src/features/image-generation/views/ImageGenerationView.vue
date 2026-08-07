@@ -678,7 +678,7 @@ function disposeDisplayImages(items: DisplayImage[]): void {
 }
 
 function toDisplayImages(response: { data?: Array<{ b64_json?: string | null; url?: string | null; revised_prompt?: string | null; mime_type?: string | null }> }): DisplayImage[] {
-  return (response.data ?? []).flatMap((image, index) => {
+  return (response.data ?? []).flatMap((image, index): DisplayImage[] => {
     const extension = outputFormat.value === 'jpeg' ? 'jpg' : outputFormat.value
     const downloadName = `sub2api-image-${Date.now()}-${index + 1}.${extension}`
     const fallbackMime = outputFormat.value === 'jpeg' ? 'image/jpeg' : `image/${outputFormat.value}`
