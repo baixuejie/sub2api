@@ -73,7 +73,7 @@ func TestImageGenerationServiceGetOptionsFiltersGroupsAndModels(t *testing.T) {
 	require.Equal(t, int64(1), options.Groups[0].ID)
 	require.Len(t, options.Groups[0].Models, 1)
 	require.Equal(t, "gpt-image-2", options.Groups[0].Models[0].Name)
-	require.Equal(t, 10, options.Groups[0].Models[0].MaxN)
+	require.Equal(t, 9, options.Groups[0].Models[0].MaxN)
 	require.Equal(t, []string{"auto", "1024x1024", "1536x1024", "1024x1536", "2048x2048", "3072x2048", "2048x3072"}, options.Groups[0].Models[0].Sizes)
 	require.NotNil(t, options.Groups[0].Models[0].CustomSize)
 	require.Equal(t, gptImage2MaxEdge, options.Groups[0].Models[0].CustomSize.MaxEdge)

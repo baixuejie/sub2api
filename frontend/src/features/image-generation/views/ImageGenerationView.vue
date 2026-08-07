@@ -9,16 +9,26 @@
           </div>
           <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">{{ t('imageGeneration.description') }}</p>
         </div>
-        <button
-          type="button"
-          class="btn btn-secondary btn-sm self-start sm:self-auto"
-          :disabled="loadingOptions || generating"
-          :title="t('common.refresh')"
-          @click="loadOptions"
-        >
-          <Icon name="refresh" size="sm" :class="loadingOptions ? 'animate-spin' : ''" aria-hidden="true" />
-          {{ t('common.refresh') }}
-        </button>
+        <div class="flex flex-wrap gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            :disabled="loadingOptions || generating"
+            :title="t('common.refresh')"
+            @click="loadOptions"
+          >
+            <Icon name="refresh" size="sm" :class="loadingOptions ? 'animate-spin' : ''" aria-hidden="true" />
+            {{ t('common.refresh') }}
+          </button>
+          <router-link
+            to="/image-generation/settings"
+            class="btn btn-secondary btn-sm"
+            :title="t('imageGeneration.actions.settings')"
+          >
+            <Icon name="cog" size="sm" aria-hidden="true" />
+            {{ t('imageGeneration.actions.settings') }}
+          </router-link>
+        </div>
       </header>
 
       <div v-if="pageError" class="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300" role="alert">
@@ -82,10 +92,23 @@
             </div>
 
             <div>
-              <label class="input-label" for="image-generation-prompt">
-                {{ t('imageGeneration.controls.prompt') }}
-                <span class="text-red-500">*</span>
-              </label>
+              <div class="mb-1 flex items-center justify-between gap-3">
+                <label class="input-label mb-0" for="image-generation-prompt">
+                  {{ t('imageGeneration.controls.prompt') }}
+                  <span class="text-red-500">*</span>
+                </label>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-sm px-2"
+                  :disabled="optimizing || generating || !prompt.trim()"
+                  :title="t('imageGeneration.actions.optimizePrompt')"
+                  @click="optimizePrompt"
+                >
+                  <Icon v-if="!optimizing" name="sparkles" size="sm" aria-hidden="true" />
+                  <Icon v-else name="refresh" size="sm" class="animate-spin" aria-hidden="true" />
+                  {{ optimizing ? t('imageGeneration.actions.optimizing') : t('imageGeneration.actions.optimizePrompt') }}
+                </button>
+              </div>
               <textarea
                 id="image-generation-prompt"
                 v-model="prompt"
@@ -97,8 +120,17 @@
                 rows="7"
                 @input="promptError = ''"
               ></textarea>
+              <button
+                v-if="previousPrompt"
+                type="button"
+                class="mt-2 text-xs text-primary-600 hover:underline dark:text-primary-400"
+                :disabled="optimizing || generating"
+                @click="restorePreviousPrompt"
+              >
+                {{ t('imageGeneration.actions.restorePrompt') }}
+              </button>
               <div class="mt-1 flex items-start justify-between gap-2 text-xs">
-                <span v-if="promptError" class="text-red-500">{{ promptError }}</span>
+                <span v-if="promptError || optimizationError" class="text-red-500">{{ promptError || optimizationError }}</span>
                 <span v-else class="text-gray-500 dark:text-dark-400">{{ t('imageGeneration.controls.promptHint') }}</span>
                 <span class="flex-shrink-0 text-gray-400 dark:text-dark-500">{{ prompt.length }}/{{ MAX_PROMPT_LENGTH }}</span>
               </div>
@@ -249,9 +281,16 @@
             <p class="text-sm text-gray-500 dark:text-dark-400">{{ t('imageGeneration.results.empty') }}</p>
           </div>
 
-          <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div v-else :class="['grid gap-4', imageGridClass]">
             <figure v-for="(image, index) in images" :key="`${image.src}-${index}`" class="group overflow-hidden rounded-xl border border-gray-100 bg-gray-50 dark:border-dark-700 dark:bg-dark-900/50">
-              <div class="relative flex aspect-square items-center justify-center overflow-hidden bg-gray-100 dark:bg-dark-900">
+              <div
+                class="relative flex aspect-square cursor-zoom-in items-center justify-center overflow-hidden bg-gray-100 dark:bg-dark-900"
+                role="button"
+                tabindex="0"
+                @click="openPreview(index)"
+                @keydown.enter.prevent="openPreview(index)"
+                @keydown.space.prevent="openPreview(index)"
+              >
                 <img
                   :src="image.src"
                   :alt="t('imageGeneration.results.imageAlt', { index: index + 1 })"
@@ -262,7 +301,7 @@
                   type="button"
                   class="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-black/60 text-white opacity-0 shadow transition-opacity hover:bg-black/75 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-white/80 group-hover:opacity-100"
                   :title="t('imageGeneration.actions.download')"
-                  @click="downloadImage(image)"
+                  @click.stop="downloadImage(image)"
                 >
                   <Icon name="download" size="sm" aria-hidden="true" />
                   <span class="sr-only">{{ t('imageGeneration.actions.download') }}</span>
@@ -276,17 +315,63 @@
         </section>
       </div>
     </div>
+    <BaseDialog
+      :show="previewIndex !== null"
+      :title="t('imageGeneration.results.previewTitle')"
+      width="full"
+      :close-on-click-outside="true"
+      :show-close-button="true"
+      @close="closePreview"
+    >
+      <div v-if="previewImage" class="flex flex-col items-center gap-4">
+        <div class="relative flex min-h-[50vh] w-full items-center justify-center rounded-lg bg-gray-950 p-2">
+          <img
+            :src="previewImage.src"
+            :alt="t('imageGeneration.results.imageAlt', { index: (previewIndex ?? 0) + 1 })"
+            class="max-h-[70vh] max-w-full object-contain"
+          />
+          <button
+            v-if="images.length > 1"
+            type="button"
+            class="absolute left-3 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-white"
+            :title="t('imageGeneration.results.previous')"
+            @click="showPreviousPreview"
+          >
+            <Icon name="chevronLeft" size="md" aria-hidden="true" />
+            <span class="sr-only">{{ t('imageGeneration.results.previous') }}</span>
+          </button>
+          <button
+            v-if="images.length > 1"
+            type="button"
+            class="absolute right-3 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-white"
+            :title="t('imageGeneration.results.next')"
+            @click="showNextPreview"
+          >
+            <Icon name="chevronRight" size="md" aria-hidden="true" />
+            <span class="sr-only">{{ t('imageGeneration.results.next') }}</span>
+          </button>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-xs text-gray-500 dark:text-dark-400">{{ (previewIndex ?? 0) + 1 }} / {{ images.length }}</span>
+          <button type="button" class="btn btn-primary btn-sm" @click="downloadImage(previewImage)">
+            <Icon name="download" size="sm" aria-hidden="true" />
+            {{ t('imageGeneration.actions.download') }}
+          </button>
+        </div>
+      </div>
+    </BaseDialog>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import { sanitizeUrl } from '@/utils/url'
-import { generateImages, loadImageGenerationOptions } from '../api/imageGeneration'
+import { generateImages, loadImageGenerationConfig, loadImageGenerationOptions, optimizeImagePrompt } from '../api/imageGeneration'
 import {
   imageSource,
   validateCustomImageSize,
@@ -309,11 +394,14 @@ const loadingOptions = ref(false)
 const pageError = ref('')
 const generationError = ref('')
 const generating = ref(false)
+const optimizing = ref(false)
 const promptError = ref('')
+const optimizationError = ref('')
 
 const selectedGroupId = ref<number | null>(null)
 const selectedModel = ref('')
 const prompt = ref('')
+const previousPrompt = ref('')
 const count = ref(1)
 const size = ref('1024x1024')
 const quality = ref<ImageGenerationQuality>('auto')
@@ -324,9 +412,11 @@ const moderation = ref<ImageGenerationModeration>('auto')
 const customWidth = ref(2048)
 const customHeight = ref(2048)
 const images = ref<DisplayImage[]>([])
+const previewIndex = ref<number | null>(null)
 
 let optionsController: AbortController | null = null
 let generationController: AbortController | null = null
+let optimizationController: AbortController | null = null
 
 const currentGroup = computed(() => groups.value.find((group) => group.id === selectedGroupId.value) ?? null)
 const currentModel = computed<ImageGenerationModelOption | null>(() => currentGroup.value?.models.find((model) => model.name === selectedModel.value) ?? null)
@@ -351,12 +441,19 @@ const qualityOptions = computed<SelectOption[]>(() => (currentModel.value?.quali
 const formatOptions = computed<SelectOption[]>(() => (currentModel.value?.output_formats ?? []).map((value) => ({ value, label: formatLabel(value) })))
 const backgroundOptions = computed<SelectOption[]>(() => (currentModel.value?.backgrounds ?? []).map((value) => ({ value, label: backgroundLabel(value) })))
 const moderationOptions = computed<SelectOption[]>(() => (currentModel.value?.moderations ?? []).map((value) => ({ value, label: moderationLabel(value) })))
-const maxGenerationCount = computed(() => Math.max(1, currentModel.value?.max_n ?? 10))
+const maxGenerationCount = computed(() => Math.min(9, Math.max(1, currentModel.value?.max_n ?? 9)))
 const isCompressionVisible = computed(() => currentModel.value?.supports_compression !== false && (outputFormat.value === 'jpeg' || outputFormat.value === 'webp'))
 const customSizeError = computed(() => {
   const constraints = currentModel.value?.custom_size
   if (size.value !== CUSTOM_SIZE_VALUE || !constraints) return null
   return validateCustomImageSize(customWidth.value, customHeight.value, constraints)
+})
+const previewImage = computed(() => previewIndex.value === null ? null : images.value[previewIndex.value] ?? null)
+const imageGridClass = computed(() => {
+  if (images.value.length <= 1) return 'grid-cols-1'
+  if (images.value.length === 2) return 'grid-cols-2'
+  if (images.value.length >= 5) return 'grid-cols-3'
+  return 'grid-cols-2'
 })
 
 function qualityLabel(value: string): string {
@@ -398,7 +495,9 @@ function updateModelDefaults(): void {
 
 watch(selectedGroupId, (groupId) => {
   const group = groups.value.find((item) => item.id === groupId)
-  selectedModel.value = group?.models[0]?.name ?? ''
+  if (!group?.models.some((model) => model.name === selectedModel.value)) {
+    selectedModel.value = group?.models[0]?.name ?? ''
+  }
   updateModelDefaults()
 })
 
@@ -424,7 +523,13 @@ async function loadOptions(): Promise<void> {
   loadingOptions.value = true
   pageError.value = ''
   try {
-    const response = await loadImageGenerationOptions({ signal: controller.signal })
+    const [optionsResult, configResult] = await Promise.allSettled([
+      loadImageGenerationOptions({ signal: controller.signal }),
+      loadImageGenerationConfig({ signal: controller.signal })
+    ])
+    if (optionsResult.status === 'rejected') throw optionsResult.reason
+    const response = optionsResult.value
+    const savedConfig = configResult.status === 'fulfilled' ? configResult.value.config : null
     const useServerDefaults = groups.value.length === 0
     groups.value = response.groups
     if (useServerDefaults) {
@@ -434,6 +539,14 @@ async function loadOptions(): Promise<void> {
       background.value = response.defaults.background
       moderation.value = response.defaults.moderation
       count.value = response.defaults.n
+      if (savedConfig) {
+        size.value = savedConfig.default_size || size.value
+        count.value = savedConfig.default_n || count.value
+        if (savedConfig.image_group_id > 0 && groups.value.some((group) => group.id === savedConfig.image_group_id)) {
+          selectedGroupId.value = savedConfig.image_group_id
+          selectedModel.value = savedConfig.image_model || ''
+        }
+      }
     }
     if (!groups.value.some((group) => group.id === selectedGroupId.value)) {
       selectedGroupId.value = groups.value[0]?.id ?? null
@@ -468,6 +581,7 @@ function toDisplayImages(response: { data?: Array<{ b64_json?: string | null; ur
 async function generate(): Promise<void> {
   normalizeCount()
   generationError.value = ''
+  optimizationError.value = ''
   const trimmedPrompt = prompt.value.trim()
   if (!trimmedPrompt) {
     promptError.value = t('imageGeneration.validation.promptRequired')
@@ -523,9 +637,65 @@ async function generate(): Promise<void> {
   }
 }
 
+async function optimizePrompt(): Promise<void> {
+  const trimmedPrompt = prompt.value.trim()
+  if (!trimmedPrompt || optimizing.value || generating.value) return
+  optimizationController?.abort()
+  const controller = new AbortController()
+  optimizationController = controller
+  optimizing.value = true
+  optimizationError.value = ''
+  try {
+    const result = await optimizeImagePrompt(trimmedPrompt, { signal: controller.signal })
+    const optimized = result.optimized_prompt.trim()
+    if (!optimized) {
+      optimizationError.value = t('imageGeneration.errors.optimizeEmpty')
+      return
+    }
+    previousPrompt.value = prompt.value
+    prompt.value = optimized
+    promptError.value = ''
+  } catch (cause) {
+    if (!controller.signal.aborted) {
+      optimizationError.value = errorMessage(cause, t('imageGeneration.errors.optimize'))
+    }
+  } finally {
+    if (optimizationController === controller) {
+      optimizationController = null
+      optimizing.value = false
+    }
+  }
+}
+
+function restorePreviousPrompt(): void {
+  if (!previousPrompt.value) return
+  prompt.value = previousPrompt.value
+  previousPrompt.value = ''
+  optimizationError.value = ''
+}
+
 function clearResults(): void {
   images.value = []
   generationError.value = ''
+  closePreview()
+}
+
+function openPreview(index: number): void {
+  if (index >= 0 && index < images.value.length) previewIndex.value = index
+}
+
+function closePreview(): void {
+  previewIndex.value = null
+}
+
+function showPreviousPreview(): void {
+  if (previewIndex.value === null || images.value.length < 2) return
+  previewIndex.value = (previewIndex.value - 1 + images.value.length) % images.value.length
+}
+
+function showNextPreview(): void {
+  if (previewIndex.value === null || images.value.length < 2) return
+  previewIndex.value = (previewIndex.value + 1) % images.value.length
 }
 
 async function downloadImage(image: DisplayImage): Promise<void> {
@@ -555,5 +725,6 @@ onMounted(() => {
 onUnmounted(() => {
   optionsController?.abort()
   generationController?.abort()
+  optimizationController?.abort()
 })
 </script>

@@ -89,9 +89,67 @@ export interface ImageGenerationResponse {
   images?: GeneratedImage[]
 }
 
+export interface ImageGenerationConfig {
+  version: number
+  prompt_group_id: number
+  prompt_model: string
+  prompt_api_key_id: number
+  image_group_id: number
+  image_model: string
+  image_api_key_id: number
+  default_size: string
+  default_n: number
+}
+
+export interface ImageGenerationConfigModelOption {
+  name: string
+}
+
+export interface ImageGenerationConfigGroupOption {
+  id: number
+  name: string
+  description?: string | null
+  platform?: string
+  models: ImageGenerationConfigModelOption[]
+}
+
+export interface ImageGenerationConfigApiKeyOption {
+  id: number
+  name: string
+  masked_key: string
+  group_id: number
+  group_name: string
+  image_enabled: boolean
+  status: string
+}
+
+export interface ImageGenerationConfigOptionsResponse {
+  config: ImageGenerationConfig
+  prompt_groups: ImageGenerationConfigGroupOption[]
+  image_groups: ImageGenerationConfigGroupOption[]
+  api_keys: ImageGenerationConfigApiKeyOption[]
+}
+
+export interface PromptOptimizationResponse {
+  original_prompt: string
+  optimized_prompt: string
+}
+
 export interface DisplayImage extends GeneratedImage {
   src: string
   downloadName: string
+}
+
+export const DEFAULT_IMAGE_GENERATION_CONFIG: ImageGenerationConfig = {
+  version: 1,
+  prompt_group_id: 0,
+  prompt_model: '',
+  prompt_api_key_id: 0,
+  image_group_id: 0,
+  image_model: 'gpt-image-2',
+  image_api_key_id: 0,
+  default_size: '1024x1024',
+  default_n: 1
 }
 
 const QUALITY_VALUES = new Set<ImageGenerationQuality>(DEFAULT_IMAGE_QUALITIES)
@@ -133,7 +191,7 @@ export function normalizeImageGenerationOptions(value: unknown): ImageGeneration
     ? rawDefaults.moderation as ImageGenerationModeration
     : 'auto'
   const defaultCount = typeof rawDefaults.n === 'number' && Number.isFinite(rawDefaults.n)
-    ? Math.max(1, Math.round(rawDefaults.n))
+    ? Math.min(9, Math.max(1, Math.round(rawDefaults.n)))
     : 1
 
   return {
@@ -167,8 +225,8 @@ export function normalizeImageGenerationOptions(value: unknown): ImageGeneration
             backgrounds: enumList(model.backgrounds, BACKGROUND_VALUES, DEFAULT_IMAGE_BACKGROUNDS),
             moderations: enumList(model.moderations, MODERATION_VALUES, DEFAULT_IMAGE_MODERATIONS),
             max_n: typeof model.max_n === 'number' && Number.isFinite(model.max_n)
-              ? Math.max(1, Math.round(model.max_n))
-              : 10,
+              ? Math.min(9, Math.max(1, Math.round(model.max_n)))
+              : 9,
             supports_compression: model.supports_compression !== false,
             custom_size: normalizeCustomSize(model.custom_size)
           }]
@@ -185,6 +243,81 @@ export function normalizeImageGenerationOptions(value: unknown): ImageGeneration
       moderation: defaultModeration,
       n: defaultCount
     }
+  }
+}
+
+function normalizeConfigGroupList(value: unknown): ImageGenerationConfigGroupOption[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((raw): ImageGenerationConfigGroupOption[] => {
+    if (!raw || typeof raw !== 'object') return []
+    const source = raw as Record<string, unknown>
+    const id = typeof source.id === 'number' ? source.id : Number(source.id)
+    if (!Number.isFinite(id) || id <= 0) return []
+    const models = Array.isArray(source.models)
+      ? source.models.flatMap((rawModel): ImageGenerationConfigModelOption[] => {
+        if (!rawModel || typeof rawModel !== 'object') return []
+        const model = rawModel as Record<string, unknown>
+        return typeof model.name === 'string' && model.name.trim()
+          ? [{ name: model.name.trim() }]
+          : []
+      })
+      : []
+    if (models.length === 0) return []
+    return [{
+      id,
+      name: typeof source.name === 'string' && source.name.trim() ? source.name : `Group ${id}`,
+      description: typeof source.description === 'string' ? source.description : null,
+      platform: typeof source.platform === 'string' ? source.platform : undefined,
+      models
+    }]
+  })
+}
+
+/** Normalize the user-scoped configuration payload and discard malformed secrets. */
+export function normalizeImageGenerationConfigOptions(value: unknown): ImageGenerationConfigOptionsResponse {
+  const source = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  const rawConfig = source.config && typeof source.config === 'object'
+    ? source.config as Record<string, unknown>
+    : {}
+  const numberValue = (key: string): number => {
+    const item = rawConfig[key]
+    const numeric = typeof item === 'number' ? item : Number(item)
+    return Number.isFinite(numeric) ? Math.round(numeric) : 0
+  }
+  const config: ImageGenerationConfig = {
+    version: 1,
+    prompt_group_id: numberValue('prompt_group_id'),
+    prompt_model: typeof rawConfig.prompt_model === 'string' ? rawConfig.prompt_model : '',
+    prompt_api_key_id: numberValue('prompt_api_key_id'),
+    image_group_id: numberValue('image_group_id'),
+    image_model: typeof rawConfig.image_model === 'string' && rawConfig.image_model.trim() ? rawConfig.image_model : 'gpt-image-2',
+    image_api_key_id: numberValue('image_api_key_id'),
+    default_size: typeof rawConfig.default_size === 'string' && rawConfig.default_size.trim() ? rawConfig.default_size : '1024x1024',
+    default_n: Math.min(9, Math.max(1, numberValue('default_n') || 1))
+  }
+  const apiKeys = Array.isArray(source.api_keys)
+    ? source.api_keys.flatMap((raw): ImageGenerationConfigApiKeyOption[] => {
+      if (!raw || typeof raw !== 'object') return []
+      const item = raw as Record<string, unknown>
+      const id = typeof item.id === 'number' ? item.id : Number(item.id)
+      const groupId = typeof item.group_id === 'number' ? item.group_id : Number(item.group_id)
+      if (!Number.isFinite(id) || !Number.isFinite(groupId) || id <= 0 || groupId <= 0) return []
+      return [{
+        id,
+        name: typeof item.name === 'string' && item.name.trim() ? item.name : `API Key #${id}`,
+        masked_key: typeof item.masked_key === 'string' ? item.masked_key : '',
+        group_id: groupId,
+        group_name: typeof item.group_name === 'string' ? item.group_name : '',
+        image_enabled: item.image_enabled === true,
+        status: typeof item.status === 'string' ? item.status : 'active'
+      }]
+    })
+    : []
+  return {
+    config,
+    prompt_groups: normalizeConfigGroupList(source.prompt_groups),
+    image_groups: normalizeConfigGroupList(source.image_groups),
+    api_keys: apiKeys
   }
 }
 

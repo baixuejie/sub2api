@@ -51,14 +51,21 @@ export default {
       generate: '生成图片',
       generating: '生成中...',
       clear: '清空结果',
-      download: '下载图片'
+      download: '下载图片',
+      settings: '设置',
+      optimizePrompt: '优化提示词',
+      optimizing: '优化中...',
+      restorePrompt: '恢复原始提示词'
     },
     results: {
       title: '生成结果',
       generating: '正在生成图片...',
       generatingHint: '生成时间取决于上游模型和图片数量。',
       empty: '输入提示词并点击生成，结果会显示在这里。',
-      imageAlt: '生成的图片 {index}'
+      imageAlt: '生成的图片 {index}',
+      previewTitle: '图片预览',
+      previous: '上一张',
+      next: '下一张'
     },
     empty: {
       title: '暂无可用图片分组',
@@ -79,7 +86,31 @@ export default {
       options: '加载图片创作配置失败，请稍后重试。',
       noModel: '请选择可用的分组和模型。',
       emptyResponse: '服务端未返回可显示的图片。',
-      generate: '图片生成失败，请稍后重试。'
+      generate: '图片生成失败，请稍后重试。',
+      optimize: '提示词优化失败，请稍后重试。',
+      optimizeEmpty: '优化器返回了空提示词。'
+    },
+    settings: {
+      title: '图片创作设置',
+      description: '选择提示词优化和图片生成使用的模型及服务端 API Key。',
+      back: '返回图片创作',
+      promptTitle: '提示词优化',
+      promptHint: '优化请求会在服务端使用所选的 OpenAI 兼容模型和 Key。',
+      imageTitle: '图片生成',
+      imageHint: '所选图片模型和 Key 会作为图片创作页的默认配置。',
+      group: '分组',
+      model: '模型',
+      apiKey: '内部 API Key',
+      defaultSize: '默认规格',
+      defaultCount: '默认张数',
+      defaultCountHint: '可选择 1 至 9 张，多张图片会以网格展示。',
+      noPromptKey: '该分组没有可用的有效 Key。',
+      noImageKey: '该分组没有可用于生图的有效 Key。',
+      save: '保存设置',
+      saving: '保存中...',
+      saved: '设置已保存。',
+      loadError: '加载图片创作设置失败。',
+      saveError: '保存图片创作设置失败。'
     }
   }
 }

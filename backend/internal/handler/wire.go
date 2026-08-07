@@ -151,9 +151,10 @@ func ProvideBatchImageHandler(
 func ProvideImageGenerationHandler(
 	channelService *service.ChannelService,
 	apiKeyService *service.APIKeyService,
+	settingRepository service.SettingRepository,
 	openAI *OpenAIGatewayHandler,
 ) *imagegenerationhandler.Handler {
-	policy := imagegenerationservice.NewService(apiKeyService, channelService, apiKeyService)
+	policy := imagegenerationservice.NewService(apiKeyService, channelService, apiKeyService, settingRepository)
 	return imagegenerationhandler.NewHandler(policy, openAI)
 }
 

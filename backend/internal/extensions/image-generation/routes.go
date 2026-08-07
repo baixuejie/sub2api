@@ -28,9 +28,17 @@ func RegisterRoutes(
 	}
 	{
 		route.GET("/options", h.Options)
+		route.GET("/config", h.Config)
+		route.PUT("/config", h.SaveConfig)
+
 		generate := route.Group("")
 		generate.Use(h.PrepareAPIKey())
 		generate.Use(gin.HandlerFunc(apiKeyAuth))
 		generate.POST("/generate", h.Generate)
+
+		optimize := route.Group("")
+		optimize.Use(h.PrepareOptimizationAPIKey())
+		optimize.Use(gin.HandlerFunc(apiKeyAuth))
+		optimize.POST("/optimize", h.Optimize)
 	}
 }

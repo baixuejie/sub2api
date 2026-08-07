@@ -14,7 +14,7 @@ import (
 
 const (
 	maxPromptRunes      = 10000
-	maxGenerationCount  = 10
+	maxGenerationCount  = 9
 	apiKeyListPageSize  = 1000
 	defaultImageSize    = "auto"
 	defaultImageQuality = "auto"
@@ -67,16 +67,22 @@ type APIKeyProvider interface {
 
 // Service contains all image-generation-specific policy and selection logic.
 type Service struct {
-	groups  GroupProvider
-	plaza   PlazaProvider
-	apiKeys APIKeyProvider
+	groups   GroupProvider
+	plaza    PlazaProvider
+	apiKeys  APIKeyProvider
+	settings core.SettingRepository
 }
 
-func NewService(groups GroupProvider, plaza PlazaProvider, apiKeys APIKeyProvider) *Service {
+func NewService(groups GroupProvider, plaza PlazaProvider, apiKeys APIKeyProvider, settings ...core.SettingRepository) *Service {
+	var settingRepo core.SettingRepository
+	if len(settings) > 0 {
+		settingRepo = settings[0]
+	}
 	return &Service{
-		groups:  groups,
-		plaza:   plaza,
-		apiKeys: apiKeys,
+		groups:   groups,
+		plaza:    plaza,
+		apiKeys:  apiKeys,
+		settings: settingRepo,
 	}
 }
 
@@ -282,43 +288,59 @@ func (s *Service) Prepare(ctx context.Context, userID int64, req GenerationReque
 		}
 	}
 
-	if s.apiKeys == nil {
-		return nil, ErrImageAPIKeyMissing
-	}
 	groupID := group.ID
-	keys, _, err := s.apiKeys.List(ctx, userID, pagination.PaginationParams{
-		Page: 1, PageSize: apiKeyListPageSize, SortBy: "id", SortOrder: pagination.SortOrderAsc,
-	}, core.APIKeyListFilters{Status: core.StatusAPIKeyActive, GroupID: &groupID})
-	if err != nil {
-		return nil, fmt.Errorf("list image generation api keys: %w", err)
+	preferredKeyID := int64(0)
+	if stored, ok := s.loadStoredConfig(ctx, userID); ok &&
+		stored.ImageGroupID == groupID && strings.EqualFold(stored.ImageModel, req.Model) {
+		preferredKeyID = stored.ImageAPIKeyID
 	}
-
-	var selected *core.APIKey
-	for i := range keys {
-		candidate := &keys[i]
-		if candidate.UserID != userID || candidate.GroupID == nil || *candidate.GroupID != groupID || candidate.Status != core.StatusAPIKeyActive || candidate.IsExpired() || candidate.IsQuotaExhausted() {
-			continue
-		}
-		// ListByUserID intentionally does not hydrate User. GetByID does, and also
-		// gives the gateway the complete current Group snapshot.
-		hydrated, getErr := s.apiKeys.GetByID(ctx, candidate.ID)
-		if getErr != nil || hydrated == nil || hydrated.User == nil || hydrated.Group == nil {
-			continue
-		}
-		if hydrated.UserID != userID || hydrated.GroupID == nil || *hydrated.GroupID != groupID || !hydrated.IsActive() || hydrated.IsExpired() || hydrated.IsQuotaExhausted() || !hydrated.Group.IsActive() || !hydrated.Group.AllowImageGeneration {
-			continue
-		}
-		if hydrated.Key == "" {
-			continue
-		}
-		selected = hydrated
-		break
+	selected, err := s.selectAPIKey(ctx, userID, groupID, preferredKeyID, true)
+	if err != nil {
+		return nil, err
 	}
 	if selected == nil {
 		return nil, ErrImageAPIKeyMissing
 	}
 
 	return &PreparedGeneration{APIKey: selected, Request: req}, nil
+}
+
+func (s *Service) selectAPIKey(ctx context.Context, userID, groupID, preferredID int64, requireImage bool) (*core.APIKey, error) {
+	if s == nil || s.apiKeys == nil {
+		return nil, ErrImageAPIKeyMissing
+	}
+	keys, _, err := s.apiKeys.List(ctx, userID, pagination.PaginationParams{
+		Page: 1, PageSize: apiKeyListPageSize, SortBy: "id", SortOrder: pagination.SortOrderAsc,
+	}, core.APIKeyListFilters{Status: core.StatusAPIKeyActive, GroupID: &groupID})
+	if err != nil {
+		return nil, fmt.Errorf("list image generation api keys: %w", err)
+	}
+	ordered := make([]core.APIKey, 0, len(keys))
+	if preferredID > 0 {
+		for i := range keys {
+			if keys[i].ID == preferredID {
+				ordered = append(ordered, keys[i])
+				break
+			}
+		}
+	}
+	for i := range keys {
+		if keys[i].ID != preferredID {
+			ordered = append(ordered, keys[i])
+		}
+	}
+	for i := range ordered {
+		candidate := &ordered[i]
+		if candidate.UserID != userID || candidate.GroupID == nil || *candidate.GroupID != groupID || candidate.Status != core.StatusAPIKeyActive || candidate.IsExpired() || candidate.IsQuotaExhausted() {
+			continue
+		}
+		hydrated, getErr := s.apiKeys.GetByID(ctx, candidate.ID)
+		if getErr != nil || hydrated == nil || hydrated.User == nil || !usableKey(hydrated, userID, groupID, requireImage) {
+			continue
+		}
+		return hydrated, nil
+	}
+	return nil, nil
 }
 
 func findModelOption(groups []GroupOption, groupID int64, model string) (GroupOption, string, bool, bool) {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   imageSource,
+  normalizeImageGenerationConfigOptions,
   normalizeImageGenerationOptions,
   validateCustomImageSize
 } from '../types/imageGeneration'
@@ -72,5 +73,25 @@ describe('image-generation extension contracts', () => {
     expect(imageSource({ b64_json: 'abc', mime_type: 'image/svg+xml' }, 'webp')).toBe('data:image/webp;base64,abc')
     expect(imageSource({ url: 'https://cdn.example/image.png', b64_json: 'ignored' }, 'png')).toBe('https://cdn.example/image.png')
     expect(imageSource({}, 'webp')).toBe('')
+  })
+
+  it('normalizes user image settings with a one-to-nine quantity and masked keys', () => {
+    const result = normalizeImageGenerationConfigOptions({
+      config: { default_n: 22, image_model: '', default_size: '' },
+      prompt_groups: [{ id: 7, name: 'Prompt', models: [{ name: 'gpt-4.1-mini' }] }],
+      image_groups: [{ id: 7, name: 'Images', models: [{ name: 'gpt-image-2' }] }],
+      api_keys: [{ id: 9, group_id: 7, name: 'Primary', masked_key: '****1234', image_enabled: true, status: 'active' }]
+    })
+
+    expect(result.config.default_n).toBe(9)
+    expect(result.config.image_model).toBe('gpt-image-2')
+    expect(result.config.default_size).toBe('1024x1024')
+    expect(result.api_keys).toEqual([expect.objectContaining({ id: 9, masked_key: '****1234' })])
+    expect(JSON.stringify(result)).not.toContain('sk-live-secret')
+  })
+
+  it('uses one image when the settings quantity is missing or invalid', () => {
+    expect(normalizeImageGenerationConfigOptions({ config: { default_n: 0 } }).config.default_n).toBe(1)
+    expect(normalizeImageGenerationConfigOptions({ config: { default_n: 'not-a-number' } }).config.default_n).toBe(1)
   })
 })

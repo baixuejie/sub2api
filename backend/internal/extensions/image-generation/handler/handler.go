@@ -26,14 +26,19 @@ type ImageGateway interface {
 	Images(c *gin.Context)
 }
 
+type PromptGateway interface {
+	ChatCompletions(c *gin.Context)
+}
+
 type Policy interface {
 	GetOptions(ctx context.Context, userID int64) (imagegenerationservice.Options, error)
 	Prepare(ctx context.Context, userID int64, req imagegenerationservice.GenerationRequest) (*imagegenerationservice.PreparedGeneration, error)
 }
 
 type Handler struct {
-	service Policy
-	gateway ImageGateway
+	service       Policy
+	gateway       ImageGateway
+	promptGateway PromptGateway
 }
 
 type preparedRequest struct {
@@ -44,7 +49,11 @@ type preparedRequest struct {
 }
 
 func NewHandler(service Policy, gateway ImageGateway) *Handler {
-	return &Handler{service: service, gateway: gateway}
+	h := &Handler{service: service, gateway: gateway}
+	if promptGateway, ok := gateway.(PromptGateway); ok {
+		h.promptGateway = promptGateway
+	}
+	return h
 }
 
 // PrepareAPIKey validates the browser payload, selects a server-side key, and

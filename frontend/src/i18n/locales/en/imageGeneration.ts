@@ -51,14 +51,21 @@ export default {
       generate: 'Generate image',
       generating: 'Generating...',
       clear: 'Clear results',
-      download: 'Download image'
+      download: 'Download image',
+      settings: 'Settings',
+      optimizePrompt: 'Optimize prompt',
+      optimizing: 'Optimizing...',
+      restorePrompt: 'Restore original prompt'
     },
     results: {
       title: 'Results',
       generating: 'Generating images...',
       generatingHint: 'Generation time depends on the upstream model and image count.',
       empty: 'Enter a prompt and click Generate to see your results here.',
-      imageAlt: 'Generated image {index}'
+      imageAlt: 'Generated image {index}',
+      previewTitle: 'Image preview',
+      previous: 'Previous image',
+      next: 'Next image'
     },
     empty: {
       title: 'No image groups available',
@@ -79,7 +86,31 @@ export default {
       options: 'Unable to load image-generation options. Try again later.',
       noModel: 'Select an available group and model.',
       emptyResponse: 'The server returned no displayable image.',
-      generate: 'Image generation failed. Try again later.'
+      generate: 'Image generation failed. Try again later.',
+      optimize: 'Prompt optimization failed. Try again later.',
+      optimizeEmpty: 'The optimizer returned an empty prompt.'
+    },
+    settings: {
+      title: 'Image Studio Settings',
+      description: 'Choose the models and server-side API keys used by prompt optimization and image generation.',
+      back: 'Back to Image Studio',
+      promptTitle: 'Prompt optimization',
+      promptHint: 'The optimizer uses the selected OpenAI-compatible model and key on the server.',
+      imageTitle: 'Image generation',
+      imageHint: 'The selected image model and key are used as the defaults in Image Studio.',
+      group: 'Group',
+      model: 'Model',
+      apiKey: 'Internal API key',
+      defaultSize: 'Default size',
+      defaultCount: 'Default quantity',
+      defaultCountHint: 'Choose between 1 and 9 images. Multiple images are shown in a grid.',
+      noPromptKey: 'No active key is available for this group.',
+      noImageKey: 'No active image-generation key is available for this group.',
+      save: 'Save settings',
+      saving: 'Saving...',
+      saved: 'Settings saved.',
+      loadError: 'Unable to load image-generation settings.',
+      saveError: 'Unable to save image-generation settings.'
     }
   }
 }

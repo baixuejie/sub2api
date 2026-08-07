@@ -241,6 +241,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/image-generation/settings',
+    name: 'ImageGenerationSettings',
+    component: () => import('@/features/image-generation/views/ImageGenerationSettingsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Image Studio Settings',
+      titleKey: 'imageGeneration.settings.title',
+      descriptionKey: 'imageGeneration.settings.description'
+    }
+  },
+  {
     path: '/usage',
     name: 'Usage',
     component: () => import('@/views/user/UsageView.vue'),
