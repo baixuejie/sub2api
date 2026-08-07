@@ -26,9 +26,6 @@ type PlazaModel struct {
 }
 
 // PlazaGroup 模型广场中以分组为顶层的条目。
-//
-// 与 AvailableGroupRef 相比多了 Description 与 Models；Models 来自该分组关联渠道的
-// 支持模型（按分组平台隔离，防跨平台泄漏），与「可用渠道」页口径一致。
 type PlazaGroup struct {
 	ID                 int64
 	Name               string
@@ -48,32 +45,16 @@ type PlazaGroup struct {
 	Models               []PlazaModel
 }
 
-// ListPlazaGroups 返回模型广场数据：每个活跃分组附带其可用模型与定价。
-//
-// 聚合口径与 ListAvailable 一致（Active 渠道、SupportedModels ∪ 全局定价回落、
-// 平台隔离），仅把顶层从渠道换成分组：
-//   - 渠道按 lower(name) 排序后遍历，保证同名模型去重结果确定；
-//   - 同分组同名模型「先见者胜」，仅当已存条目无定价而新条目有定价时升级替换；
-//   - 图片计费模型的档位价按实收口径合成（分组图片价 > 渠道档位价 > 渠道默认按次价，
-//     见 plazaImageDisplayPricing）；
-//   - 每个模型附带 LiteLLM 官方参考价（查不到为 nil）；
-//   - 只返回 Models 非空的分组；分组按 RateMultiplier 升序（同倍率按名称），
-//     组内模型按名称排序。
+// ListPlazaGroups 返回模型广场数据：每个活跃分组附带其启用的模型列表与定价。
+// 模型列表完全由 groups.models_list_config 提供，不依赖渠道或渠道关联；模型定价
+// 从 PricingService 的 LiteLLM 官方数据合成，查不到的模型仍保留但 Pricing 为 nil。
 //
 // 可见性过滤（专属分组）不在此层做，由 handler 按登录态裁剪。
 func (s *ChannelService) ListPlazaGroups(ctx context.Context) ([]PlazaGroup, error) {
-	channels, err := s.repo.ListAll(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list channels: %w", err)
-	}
 	groups, err := s.groupRepo.ListActive(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list active groups: %w", err)
 	}
-
-	sort.SliceStable(channels, func(i, j int) bool {
-		return strings.ToLower(channels[i].Name) < strings.ToLower(channels[j].Name)
-	})
 
 	byGroup := make(map[int64]*PlazaGroup, len(groups))
 	groupEnt := make(map[int64]*Group, len(groups))
@@ -99,47 +80,34 @@ func (s *ChannelService) ListPlazaGroups(ctx context.Context) ([]PlazaGroup, err
 		order = append(order, g.ID)
 	}
 
-	// modelIdx[groupID][modelName] = index into byGroup[groupID].Models
-	modelIdx := make(map[int64]map[string]int, len(groups))
-	for i := range channels {
-		ch := &channels[i]
-		if ch.Status != StatusActive {
+	for _, gid := range order {
+		pg := byGroup[gid]
+		g := groupEnt[gid]
+		cfg := normalizeGroupModelsListConfig(g.ModelsListConfig)
+		if !cfg.Enabled || len(cfg.Models) == 0 {
 			continue
 		}
-		ch.normalizeBillingModelSource()
-		supported := ch.SupportedModels()
-		s.fillGlobalPricingFallback(supported)
-
-		for _, gid := range ch.GroupIDs {
-			pg, ok := byGroup[gid]
-			if !ok {
+		seen := make(map[string]struct{}, len(cfg.Models))
+		for _, rawName := range cfg.Models {
+			name := strings.TrimSpace(rawName)
+			if name == "" {
 				continue
 			}
-			idx := modelIdx[gid]
-			if idx == nil {
-				idx = make(map[string]int, len(supported))
-				modelIdx[gid] = idx
+			if _, ok := seen[name]; ok {
+				continue
 			}
-			for j := range supported {
-				m := supported[j]
-				if m.Platform != pg.Platform {
-					continue
+			seen[name] = struct{}{}
+			var pricing *ChannelModelPricing
+			if s.pricingService != nil {
+				if lp := s.pricingService.GetModelPricing(name); lp != nil {
+					pricing = synthesizePricingFromLiteLLM(lp, nil)
 				}
-				pricing := plazaImageDisplayPricing(m.Pricing, groupEnt[gid])
-				if at, seen := idx[m.Name]; seen {
-					// 先见者胜；仅当已存条目无定价而新条目有定价时升级。
-					if pg.Models[at].Pricing == nil && pricing != nil {
-						pg.Models[at].Pricing = pricing
-					}
-					continue
-				}
-				idx[m.Name] = len(pg.Models)
-				pg.Models = append(pg.Models, PlazaModel{
-					Name:     m.Name,
-					Platform: m.Platform,
-					Pricing:  pricing,
-				})
 			}
+			pg.Models = append(pg.Models, PlazaModel{
+				Name:     name,
+				Platform: pg.Platform,
+				Pricing:  plazaImageDisplayPricing(pricing, g),
+			})
 		}
 	}
 
