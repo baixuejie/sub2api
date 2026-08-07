@@ -141,6 +141,8 @@ export interface PromptOptimizationResponse {
 export interface DisplayImage extends GeneratedImage {
   src: string
   downloadName: string
+  blob?: Blob
+  objectUrl?: boolean
 }
 
 export const DEFAULT_IMAGE_GENERATION_CONFIG: ImageGenerationConfig = {

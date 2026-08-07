@@ -360,18 +360,21 @@
                 />
                 <button
                   type="button"
-                  class="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-black/60 text-white opacity-0 shadow transition-opacity hover:bg-black/75 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-white/80 group-hover:opacity-100"
+                  class="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-black/60 text-white shadow hover:bg-black/75 focus:outline-none focus:ring-2 focus:ring-white/80"
                   :title="t('imageGeneration.actions.download')"
+                  :disabled="downloadLoadingIndex === index"
+                  @pointerdown.stop
                   @click.stop="downloadImage(image)"
                 >
-                  <Icon name="download" size="sm" aria-hidden="true" />
+                  <Icon :name="downloadLoadingIndex === index ? 'refresh' : 'download'" size="sm" :class="downloadLoadingIndex === index ? 'animate-spin' : undefined" aria-hidden="true" />
                   <span class="sr-only">{{ t('imageGeneration.actions.download') }}</span>
                 </button>
                 <button
                   type="button"
-                  class="absolute right-14 top-3 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-black/60 text-white opacity-0 shadow transition-opacity hover:bg-black/75 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-white/80 group-hover:opacity-100"
+                  class="absolute right-14 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-black/60 text-white shadow hover:bg-black/75 focus:outline-none focus:ring-2 focus:ring-white/80"
                   :title="t('imageGeneration.actions.useForEdit')"
                   :disabled="sourceLoadingIndex === index"
+                  @pointerdown.stop
                   @click.stop="useImageForEdit(image, index)"
                 >
                   <Icon v-if="sourceLoadingIndex !== index" name="edit" size="sm" aria-hidden="true" />
@@ -425,8 +428,8 @@
         </div>
         <div class="flex items-center gap-3">
           <span class="text-xs text-gray-500 dark:text-dark-400">{{ (previewIndex ?? 0) + 1 }} / {{ images.length }}</span>
-          <button type="button" class="btn btn-primary btn-sm" @click="downloadImage(previewImage)">
-            <Icon name="download" size="sm" aria-hidden="true" />
+          <button type="button" class="btn btn-primary btn-sm" :disabled="downloadLoadingIndex === previewIndex" @click="downloadImage(previewImage)">
+            <Icon :name="downloadLoadingIndex === previewIndex ? 'refresh' : 'download'" size="sm" :class="downloadLoadingIndex === previewIndex ? 'animate-spin' : undefined" aria-hidden="true" />
             {{ t('imageGeneration.actions.download') }}
           </button>
           <button type="button" class="btn btn-secondary btn-sm" :disabled="sourceLoadingIndex === previewIndex" @click="previewImage && useImageForEdit(previewImage, previewIndex ?? 0)">
@@ -481,6 +484,7 @@ const mode = ref<'generate' | 'edit'>('generate')
 const editSources = ref<EditSourceImage[]>([])
 const editSourceError = ref('')
 const sourceLoadingIndex = ref<number | null>(null)
+const downloadLoadingIndex = ref<number | null>(null)
 const editFileInput = ref<HTMLInputElement | null>(null)
 
 const selectedGroupId = ref<number | null>(null)
@@ -660,13 +664,37 @@ async function loadOptions(): Promise<void> {
   }
 }
 
+function base64ImageBlob(value: string, mimeType: string): Blob {
+  const binary = window.atob(value.trim())
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+  return new Blob([bytes], { type: mimeType })
+}
+
+function disposeDisplayImages(items: DisplayImage[]): void {
+  items.forEach((image) => {
+    if (image.objectUrl) URL.revokeObjectURL(image.src)
+  })
+}
+
 function toDisplayImages(response: { data?: Array<{ b64_json?: string | null; url?: string | null; revised_prompt?: string | null; mime_type?: string | null }> }): DisplayImage[] {
   return (response.data ?? []).flatMap((image, index) => {
-    const unsafeSource = imageSource(image, outputFormat.value)
-    const src = sanitizeUrl(unsafeSource, { allowDataUrl: true, allowRelative: true })
-    if (!src) return []
     const extension = outputFormat.value === 'jpeg' ? 'jpg' : outputFormat.value
-    return [{ ...image, src, downloadName: `sub2api-image-${Date.now()}-${index + 1}.${extension}` }]
+    const downloadName = `sub2api-image-${Date.now()}-${index + 1}.${extension}`
+    const fallbackMime = outputFormat.value === 'jpeg' ? 'image/jpeg' : `image/${outputFormat.value}`
+    const mimeType = normalizedImageType(image.mime_type || fallbackMime)
+    if (typeof image.b64_json === 'string' && image.b64_json.trim()) {
+      try {
+        const blob = base64ImageBlob(image.b64_json, mimeType)
+        const src = URL.createObjectURL(blob)
+        return [{ revised_prompt: image.revised_prompt, mime_type: mimeType, src, downloadName, blob, objectUrl: true }]
+      } catch {
+        return []
+      }
+    }
+    const src = sanitizeUrl(imageSource(image, outputFormat.value), { allowDataUrl: true, allowRelative: true })
+    if (!src) return []
+    return [{ ...image, src, downloadName }]
   })
 }
 
@@ -722,6 +750,7 @@ async function generate(): Promise<void> {
     if (displayImages.length === 0) {
       generationError.value = t('imageGeneration.errors.emptyResponse')
     } else {
+      disposeDisplayImages(images.value)
       images.value = displayImages
     }
   } catch (cause) {
@@ -775,6 +804,7 @@ async function edit(): Promise<void> {
     if (displayImages.length === 0) {
       generationError.value = t('imageGeneration.errors.emptyResponse')
     } else {
+      disposeDisplayImages(images.value)
       images.value = displayImages
     }
   } catch (cause) {
@@ -859,14 +889,12 @@ async function useImageForEdit(image: DisplayImage, index: number): Promise<void
   sourceLoadingIndex.value = index
   editSourceError.value = ''
   try {
-    const response = await fetch(image.src, { credentials: 'omit' })
-    if (!response.ok) throw new Error('source image unavailable')
-    const blob = await response.blob()
+    const blob = image.blob ?? await fetchImageBlob(image)
     const type = normalizedImageType(blob.type || image.mime_type || `image/${outputFormat.value}`)
     if (!EDIT_IMAGE_TYPES.has(type)) throw new Error('unsupported source image type')
     if (blob.size <= 0 || blob.size > MAX_EDIT_FILE_BYTES) throw new Error('source image is too large')
     const file = new File([blob], image.downloadName, { type })
-    addEditSources([file], [image.src])
+    addEditSources([file])
     mode.value = 'edit'
     closePreview()
   } catch {
@@ -914,6 +942,7 @@ function restorePreviousPrompt(): void {
 }
 
 function clearResults(): void {
+  disposeDisplayImages(images.value)
   images.value = []
   generationError.value = ''
   closePreview()
@@ -938,10 +967,11 @@ function showNextPreview(): void {
 }
 
 async function downloadImage(image: DisplayImage): Promise<void> {
+  const index = images.value.indexOf(image)
+  if (downloadLoadingIndex.value !== null) return
+  downloadLoadingIndex.value = index >= 0 ? index : previewIndex.value
   try {
-    const response = await fetch(image.src, { credentials: 'omit' })
-    if (!response.ok) throw new Error('download failed')
-    const blob = await response.blob()
+    const blob = image.blob ?? await fetchImageBlob(image)
     const objectUrl = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = objectUrl
@@ -954,7 +984,17 @@ async function downloadImage(image: DisplayImage): Promise<void> {
     // Remote URLs may disallow CORS; opening the protected URL is the least
     // surprising fallback and does not expose any credential to the page.
     window.open(image.src, '_blank', 'noopener,noreferrer')
+  } finally {
+    downloadLoadingIndex.value = null
   }
+}
+
+async function fetchImageBlob(image: DisplayImage): Promise<Blob> {
+  const response = await fetch(image.src, { credentials: 'omit' })
+  if (!response.ok) throw new Error('image unavailable')
+  const blob = await response.blob()
+  if (blob.size <= 0) throw new Error('image is empty')
+  return blob
 }
 
 onMounted(() => {
@@ -968,5 +1008,6 @@ onUnmounted(() => {
   editSources.value.forEach((source) => {
     if (source.objectUrl) URL.revokeObjectURL(source.src)
   })
+  disposeDisplayImages(images.value)
 })
 </script>
