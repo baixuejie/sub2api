@@ -31,16 +31,16 @@ func TestFilterPlazaVisibleGroups_AnonymousSeesOnlyNonExclusive(t *testing.T) {
 	require.ElementsMatch(t, []int64{1, 3}, ids)
 }
 
-func TestFilterPlazaVisibleGroups_AuthedSeesGrantedExclusive(t *testing.T) {
-	// 登录:非专属 + 授权的专属;未授权的专属仍不可见。
+func TestFilterPlazaVisibleGroups_AuthedStillHidesExclusive(t *testing.T) {
+	// 登录并获得专属组授权也不能将专属组加入模型广场。
 	allowed := map[int64]struct{}{2: {}}
 	visible := filterPlazaVisibleGroups(plazaGroups(), allowed)
-	require.Len(t, visible, 3)
+	require.Len(t, visible, 2)
 	ids := make([]int64, 0, len(visible))
 	for _, g := range visible {
 		ids = append(ids, g.ID)
 	}
-	require.ElementsMatch(t, []int64{1, 2, 3}, ids)
+	require.ElementsMatch(t, []int64{1, 3}, ids)
 }
 
 func TestFilterPlazaVisibleGroups_AuthedEmptySetSeesNoExclusive(t *testing.T) {

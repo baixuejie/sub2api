@@ -143,12 +143,7 @@ func filterPlazaVisibleGroups(
 	visible := make([]service.PlazaGroup, 0, len(groups))
 	for _, g := range groups {
 		if g.IsExclusive {
-			if allowedExclusive == nil {
-				continue
-			}
-			if _, ok := allowedExclusive[g.ID]; !ok {
-				continue
-			}
+			continue
 		}
 		visible = append(visible, g)
 	}
