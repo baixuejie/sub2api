@@ -115,6 +115,11 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 		return nil, infraerrors.BadRequest("INVALID_FORWARDED_CLIENT_IP_HEADERS", err.Error())
 	}
 	settings.ForwardedClientIPHeaders = normalizedForwardedClientIPHeaders
+	normalizedTutorialVideos, err := NormalizeTutorialVideosJSON(settings.TutorialVideos)
+	if err != nil {
+		return nil, infraerrors.BadRequest("INVALID_TUTORIAL_VIDEOS", err.Error())
+	}
+	settings.TutorialVideos = normalizedTutorialVideos
 	alipaySource, err := normalizeVisibleMethodSettingSource("alipay", settings.PaymentVisibleMethodAlipaySource, settings.PaymentVisibleMethodAlipayEnabled)
 	if err != nil {
 		return nil, err
@@ -359,6 +364,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyTablePageSizeOptions] = string(tablePageSizeOptionsJSON)
 	updates[SettingKeyCustomMenuItems] = settings.CustomMenuItems
 	updates[SettingKeyCustomEndpoints] = settings.CustomEndpoints
+	updates[SettingKeyTutorialVideos] = settings.TutorialVideos
 
 	// 默认配置
 	updates[SettingKeyDefaultConcurrency] = strconv.Itoa(settings.DefaultConcurrency)

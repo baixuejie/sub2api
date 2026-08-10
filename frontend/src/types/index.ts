@@ -204,6 +204,15 @@ export interface LoginAgreementDocument {
   content_md: string
 }
 
+export interface PublicTutorialVideo {
+  id: string
+  title: string
+  cover_url: string
+  video_url: string
+  enabled: boolean
+  sort_order: number
+}
+
 export interface PublicSettings {
   registration_enabled: boolean
   email_verify_enabled: boolean
@@ -243,6 +252,7 @@ export interface PublicSettings {
   table_page_size_options: number[]
   custom_menu_items: CustomMenuItem[]
   custom_endpoints: CustomEndpoint[]
+  tutorial_videos?: PublicTutorialVideo[]
   linuxdo_oauth_enabled: boolean
   dingtalk_oauth_enabled?: boolean
   wechat_oauth_enabled: boolean

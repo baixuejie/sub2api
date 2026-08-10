@@ -168,6 +168,7 @@ type UpdateSettingsRequest struct {
 	TablePageSizeOptions        []int                 `json:"table_page_size_options"`
 	CustomMenuItems             *[]dto.CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints             *[]dto.CustomEndpoint `json:"custom_endpoints"`
+	TutorialVideos              *[]dto.TutorialVideo  `json:"tutorial_videos"`
 
 	// 默认配置
 	DefaultConcurrency                        int                               `json:"default_concurrency"`
@@ -1386,6 +1387,25 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		customEndpointsJSON = string(endpointBytes)
 	}
 
+	tutorialVideosJSON := previousSettings.TutorialVideos
+	if _, err := service.NormalizeTutorialVideosJSON(tutorialVideosJSON); err != nil {
+		// Keep unrelated partial updates usable if an older deployment left a malformed value.
+		tutorialVideosJSON = "[]"
+	}
+	if req.TutorialVideos != nil {
+		videoBytes, err := json.Marshal(*req.TutorialVideos)
+		if err != nil {
+			response.BadRequest(c, "Failed to serialize tutorial videos")
+			return
+		}
+		normalized, err := service.NormalizeTutorialVideosJSON(string(videoBytes))
+		if err != nil {
+			response.BadRequest(c, "Invalid tutorial videos: "+err.Error())
+			return
+		}
+		tutorialVideosJSON = normalized
+	}
+
 	// Ops metrics collector interval validation (seconds).
 	if req.OpsMetricsIntervalSeconds != nil {
 		v := *req.OpsMetricsIntervalSeconds
@@ -1623,6 +1643,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		TablePageSizeOptions:                   req.TablePageSizeOptions,
 		CustomMenuItems:                        customMenuJSON,
 		CustomEndpoints:                        customEndpointsJSON,
+		TutorialVideos:                         tutorialVideosJSON,
 		DefaultConcurrency:                     req.DefaultConcurrency,
 		DefaultBalance:                         req.DefaultBalance,
 		AffiliateRebateRate:                    affiliateRebateRate,
@@ -2233,6 +2254,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		TablePageSizeOptions:                                   updatedSettings.TablePageSizeOptions,
 		CustomMenuItems:                                        dto.ParseCustomMenuItems(updatedSettings.CustomMenuItems),
 		CustomEndpoints:                                        dto.ParseCustomEndpoints(updatedSettings.CustomEndpoints),
+		TutorialVideos:                                         dto.ParseTutorialVideos(updatedSettings.TutorialVideos),
 		DefaultConcurrency:                                     updatedSettings.DefaultConcurrency,
 		DefaultBalance:                                         updatedSettings.DefaultBalance,
 		AffiliateRebateRate:                                    updatedSettings.AffiliateRebateRate,

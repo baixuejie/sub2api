@@ -192,6 +192,7 @@ export default {
     mySubscriptions: 'My Subscriptions',
     buySubscription: 'Recharge / Subscription',
     docs: 'Docs',
+    tutorials: 'Tutorials',
     myOrders: 'My Orders',
     orderManagement: 'Orders',
     paymentDashboard: 'Payment Dashboard',
@@ -206,6 +207,23 @@ export default {
     contentModeration: 'Content Moderation',
     promptAudit: 'Prompt Audit',
     auditLogs: 'Audit Logs',
+  },
+
+  tutorials: {
+    title: 'Tutorials',
+    description: 'Learn how to use the platform with documentation and video guides.',
+    documents: {
+      title: 'Documentation',
+      description: 'Read the complete product documentation online.',
+    },
+    videos: {
+      title: 'Video Tutorials',
+      description: 'Choose a tutorial to open and play in a new window.',
+      loading: 'Loading video tutorials...',
+      empty: 'No video tutorials are available yet.',
+      error: 'Unable to load video tutorials. Please try again later.',
+      open: 'Open tutorial: {title}',
+    },
   },
 
   // Auth

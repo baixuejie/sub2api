@@ -25,6 +25,16 @@ type CustomEndpoint struct {
 	Description string `json:"description"`
 }
 
+// TutorialVideo represents an administrator-configured tutorial video.
+type TutorialVideo struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	CoverURL  string `json:"cover_url"`
+	VideoURL  string `json:"video_url"`
+	Enabled   bool   `json:"enabled"`
+	SortOrder int    `json:"sort_order"`
+}
+
 // SystemSettings represents the admin settings API response payload.
 type SystemSettings struct {
 	RegistrationEnabled                 bool                     `json:"registration_enabled"`
@@ -163,6 +173,7 @@ type SystemSettings struct {
 	TablePageSizeOptions        []int            `json:"table_page_size_options"`
 	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints             []CustomEndpoint `json:"custom_endpoints"`
+	TutorialVideos              []TutorialVideo  `json:"tutorial_videos"`
 
 	DefaultConcurrency           int                          `json:"default_concurrency"`
 	DefaultBalance               float64                      `json:"default_balance"`
@@ -387,6 +398,7 @@ type PublicSettings struct {
 	TablePageSizeOptions                []int                    `json:"table_page_size_options"`
 	CustomMenuItems                     []CustomMenuItem         `json:"custom_menu_items"`
 	CustomEndpoints                     []CustomEndpoint         `json:"custom_endpoints"`
+	TutorialVideos                      []TutorialVideo          `json:"tutorial_videos"`
 	DingTalkOAuthEnabled                bool                     `json:"dingtalk_oauth_enabled"`
 	LinuxDoOAuthEnabled                 bool                     `json:"linuxdo_oauth_enabled"`
 	WeChatOAuthEnabled                  bool                     `json:"wechat_oauth_enabled"`
@@ -599,6 +611,19 @@ func ParseCustomEndpoints(raw string) []CustomEndpoint {
 	var items []CustomEndpoint
 	if err := json.Unmarshal([]byte(raw), &items); err != nil {
 		return []CustomEndpoint{}
+	}
+	return items
+}
+
+// ParseTutorialVideos parses the persisted tutorial video JSON.
+func ParseTutorialVideos(raw string) []TutorialVideo {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "[]" {
+		return []TutorialVideo{}
+	}
+	var items []TutorialVideo
+	if err := json.Unmarshal([]byte(raw), &items); err != nil || items == nil {
+		return []TutorialVideo{}
 	}
 	return items
 }

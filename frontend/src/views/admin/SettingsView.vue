@@ -6731,6 +6731,7 @@
               </button>
             </div>
           </div>
+          <TutorialVideoSettings v-model="form.tutorial_videos" />
 	        </div>
 	        <!-- /Tab: General -->
 
@@ -8673,6 +8674,7 @@ import type {
   AuthSourceDefaultsState,
   AuthSourceType,
   SystemSettings,
+  TutorialVideoSetting,
   UpdateSettingsRequest,
   DefaultSubscriptionSetting,
   DefaultPlatformQuotasMap,
@@ -8701,6 +8703,7 @@ import Toggle from "@/components/common/Toggle.vue";
 import ProxySelector from "@/components/common/ProxySelector.vue";
 import ImageUpload from "@/components/common/ImageUpload.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
+import TutorialVideoSettings from "@/features/tutorials/components/TutorialVideoSettings.vue";
 import EmailTemplateEditor from "@/views/admin/settings/EmailTemplateEditor.vue";
 import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolicyUserSelector.vue";
 import { useClipboard } from "@/composables/useClipboard";
@@ -9498,6 +9501,7 @@ const form = reactive<SettingsForm>({
     endpoint: string;
     description: string;
   }>,
+  tutorial_videos: [] as TutorialVideoSetting[],
   frontend_url: "",
   smtp_host: "",
   smtp_port: 587,
@@ -11017,6 +11021,35 @@ async function saveSettings() {
         return false;
       }
     };
+
+    const normalizedTutorialVideos = form.tutorial_videos.map(
+      (video, index): TutorialVideoSetting => ({
+        id: video.id.trim() || `tutorial-${index + 1}`,
+        title: video.title.trim(),
+        cover_url: video.cover_url.trim(),
+        video_url: video.video_url.trim(),
+        enabled: Boolean(video.enabled),
+        sort_order: index,
+      }),
+    );
+    const invalidTutorialVideo = normalizedTutorialVideos.find(
+      (video) =>
+        !video.title ||
+        !video.video_url ||
+        !isValidHttpUrl(video.video_url) ||
+        !isValidHttpUrl(video.cover_url),
+    );
+    if (invalidTutorialVideo) {
+      appStore.showError(
+        localText(
+          "每个教程视频都需要填写标题和有效的视频链接；封面链接填写后也必须是有效的 HTTP(S) 地址。",
+          "Every tutorial video needs a title and valid video URL. Cover URLs must also use HTTP(S).",
+        ),
+      );
+      return;
+    }
+    form.tutorial_videos = normalizedTutorialVideos;
+
     // Optional URL fields: auto-clear invalid values so they don't cause backend 400 errors
     if (!isValidHttpUrl(form.frontend_url)) form.frontend_url = "";
     if (!isValidHttpUrl(form.doc_url)) form.doc_url = "";
@@ -11086,6 +11119,7 @@ async function saveSettings() {
       table_page_size_options: form.table_page_size_options,
       custom_menu_items: form.custom_menu_items,
       custom_endpoints: form.custom_endpoints,
+      tutorial_videos: form.tutorial_videos,
       frontend_url: form.frontend_url,
       smtp_host: form.smtp_host,
       smtp_port: form.smtp_port,

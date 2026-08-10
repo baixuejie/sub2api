@@ -149,6 +149,17 @@
 
     <!-- Bottom Section -->
     <div class="mt-auto border-t border-gray-100 p-3 dark:border-dark-800">
+      <router-link
+        to="/tutorials"
+        class="sidebar-link mb-2 w-full"
+        :class="{ 'sidebar-link-active': isActive('/tutorials'), 'sidebar-link-collapsed': sidebarCollapsed }"
+        :title="sidebarCollapsed ? t('nav.tutorials') : undefined"
+        @click="handleMenuItemClick('/tutorials')"
+      >
+        <Icon name="book" class="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+        <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ t('nav.tutorials') }}</span>
+      </router-link>
+
       <!-- Theme Toggle -->
       <button
         @click="toggleTheme"
@@ -193,6 +204,7 @@ import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
+import Icon from '@/components/icons/Icon.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'

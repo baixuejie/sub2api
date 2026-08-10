@@ -195,6 +195,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyTablePageSizeOptions,
 		SettingKeyCustomMenuItems,
 		SettingKeyCustomEndpoints,
+		SettingKeyTutorialVideos,
 		SettingKeyLinuxDoConnectEnabled,
 		SettingKeyDingTalkConnectEnabled,
 		SettingKeyWeChatConnectEnabled,
@@ -334,6 +335,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		TablePageSizeOptions:                tablePageSizeOptions,
 		CustomMenuItems:                     settings[SettingKeyCustomMenuItems],
 		CustomEndpoints:                     settings[SettingKeyCustomEndpoints],
+		TutorialVideos:                      ParsePublicTutorialVideos(settings[SettingKeyTutorialVideos]),
 		LinuxDoOAuthEnabled:                 linuxDoEnabled,
 		DingTalkOAuthEnabled:                dingTalkEnabled,
 		WeChatOAuthEnabled:                  weChatEnabled,
@@ -576,6 +578,7 @@ type PublicSettingsInjectionPayload struct {
 	TablePageSizeOptions                []int                    `json:"table_page_size_options"`
 	CustomMenuItems                     json.RawMessage          `json:"custom_menu_items"`
 	CustomEndpoints                     json.RawMessage          `json:"custom_endpoints"`
+	TutorialVideos                      []TutorialVideo          `json:"tutorial_videos"`
 	LinuxDoOAuthEnabled                 bool                     `json:"linuxdo_oauth_enabled"`
 	DingTalkOAuthEnabled                bool                     `json:"dingtalk_oauth_enabled"`
 	WeChatOAuthEnabled                  bool                     `json:"wechat_oauth_enabled"`
@@ -661,6 +664,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		TablePageSizeOptions:                settings.TablePageSizeOptions,
 		CustomMenuItems:                     filterUserVisibleMenuItems(settings.CustomMenuItems),
 		CustomEndpoints:                     safeRawJSONArray(settings.CustomEndpoints),
+		TutorialVideos:                      settings.TutorialVideos,
 		LinuxDoOAuthEnabled:                 settings.LinuxDoOAuthEnabled,
 		DingTalkOAuthEnabled:                settings.DingTalkOAuthEnabled,
 		WeChatOAuthEnabled:                  settings.WeChatOAuthEnabled,
@@ -742,8 +746,8 @@ func safeRawJSONArray(raw string) json.RawMessage {
 	return json.RawMessage("[]")
 }
 
-// GetFrameSrcOrigins returns deduplicated http(s) origins from home_content URL,
-// purchase_subscription_url, and all custom_menu_items URLs. Used by the router layer for CSP frame-src injection.
+// GetFrameSrcOrigins returns deduplicated http(s) origins used by embedded pages,
+// including the Tutorials documentation, home content, purchase, and custom menu URLs.
 func (s *SettingService) GetFrameSrcOrigins(ctx context.Context) ([]string, error) {
 	settings, err := s.GetPublicSettings(ctx)
 	if err != nil {
@@ -761,6 +765,9 @@ func (s *SettingService) GetFrameSrcOrigins(ctx context.Context) ([]string, erro
 			}
 		}
 	}
+
+	// The Tutorials extension embeds the fixed documentation page in an iframe.
+	addOrigin(TutorialDocumentURL)
 
 	// home content URL (when home_content is set to a URL for iframe embedding)
 	addOrigin(settings.HomeContent)

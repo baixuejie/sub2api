@@ -83,6 +83,7 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		TablePageSizeOptions:                settings.TablePageSizeOptions,
 		CustomMenuItems:                     dto.ParseUserVisibleMenuItems(settings.CustomMenuItems),
 		CustomEndpoints:                     dto.ParseCustomEndpoints(settings.CustomEndpoints),
+		TutorialVideos:                      tutorialVideosToDTO(settings.TutorialVideos),
 		DingTalkOAuthEnabled:                settings.DingTalkOAuthEnabled,
 		LinuxDoOAuthEnabled:                 settings.LinuxDoOAuthEnabled,
 		WeChatOAuthEnabled:                  settings.WeChatOAuthEnabled,
@@ -119,6 +120,17 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 
 		AllowUserViewErrorRequests: settings.AllowUserViewErrorRequests,
 	})
+}
+
+func tutorialVideosToDTO(items []service.TutorialVideo) []dto.TutorialVideo {
+	result := make([]dto.TutorialVideo, 0, len(items))
+	for _, item := range items {
+		result = append(result, dto.TutorialVideo{
+			ID: item.ID, Title: item.Title, CoverURL: item.CoverURL, VideoURL: item.VideoURL,
+			Enabled: item.Enabled, SortOrder: item.SortOrder,
+		})
+	}
+	return result
 }
 
 // UnsubscribeNotificationEmail handles optional notification email opt-outs.
