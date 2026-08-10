@@ -35,13 +35,14 @@ describe('Model Plaza extension integration surface', () => {
     expect(explorer).toContain(':show-official-price="showOfficialPrice"')
   })
 
-  it('exposes the enabled plaza to regular users through the sidebar', () => {
+  it('keeps the enabled plaza in the header without duplicating it in the sidebar', () => {
     const sidebar = read('../../../components/layout/AppSidebar.vue')
+    const header = read('../../../components/layout/AppHeader.vue')
 
-    expect(sidebar).toContain('const flagModelPlaza = makeSidebarFlag(FeatureFlags.modelPlaza)')
-    expect(sidebar).toContain("path: '/model-plaza'")
-    expect(sidebar).toContain("label: t('nav.modelPlaza')")
-    expect(sidebar).toContain('featureFlag: flagModelPlaza')
-    expect(sidebar).toContain("query: { embedded: '1' }")
+    expect(sidebar).not.toContain("path: '/model-plaza'")
+    expect(sidebar).not.toContain('FeatureFlags.modelPlaza')
+    expect(header).toContain('const modelPlazaEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.modelPlaza))')
+    expect(header).toContain(":to=\"{ path: '/model-plaza', query: { embedded: '1' } }\"")
+    expect(header).toContain("t('nav.modelPlaza')")
   })
 })
