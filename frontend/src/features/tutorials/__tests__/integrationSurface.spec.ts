@@ -23,7 +23,11 @@ describe('Tutorials extension integration surface', () => {
     expect(view).toContain('role="tabpanel"')
     expect(view).toContain('if (!settings)')
     expect(api).toContain('tutorial_videos')
+    expect(api).toContain("'/admin/tutorials/covers'")
     expect(settings).toContain('defineModel<TutorialVideoSetting[]>')
+    expect(settings).toContain('accept="image/png,image/jpeg,image/webp"')
+    expect(settings).toContain('handleCoverUpload($event, video, index)')
+    expect(view).toContain('allowRelative: true')
     expect(adminSettings).toContain(
       '<TutorialVideoSettings v-model="form.tutorial_videos" />'
     )

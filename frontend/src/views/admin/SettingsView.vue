@@ -8704,6 +8704,7 @@ import ProxySelector from "@/components/common/ProxySelector.vue";
 import ImageUpload from "@/components/common/ImageUpload.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
 import TutorialVideoSettings from "@/features/tutorials/components/TutorialVideoSettings.vue";
+import { isValidTutorialCoverUrl } from "@/features/tutorials/api/tutorials";
 import EmailTemplateEditor from "@/views/admin/settings/EmailTemplateEditor.vue";
 import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolicyUserSelector.vue";
 import { useClipboard } from "@/composables/useClipboard";
@@ -11037,13 +11038,13 @@ async function saveSettings() {
         !video.title ||
         !video.video_url ||
         !isValidHttpUrl(video.video_url) ||
-        !isValidHttpUrl(video.cover_url),
+        !isValidTutorialCoverUrl(video.cover_url),
     );
     if (invalidTutorialVideo) {
       appStore.showError(
         localText(
-          "每个教程视频都需要填写标题和有效的视频链接；封面链接填写后也必须是有效的 HTTP(S) 地址。",
-          "Every tutorial video needs a title and valid video URL. Cover URLs must also use HTTP(S).",
+          "每个教程视频都需要填写标题和有效的视频链接；封面链接填写后也必须是有效的 HTTP(S) 地址或已上传的本地封面。",
+          "Every tutorial video needs a title and valid video URL. Cover URLs must use HTTP(S) or an uploaded local cover.",
         ),
       );
       return;

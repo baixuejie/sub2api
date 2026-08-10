@@ -178,7 +178,7 @@ function safeVideoUrl(url: string): string {
 }
 
 function safeCoverUrl(url: string): string {
-  return sanitizeUrl(url, { allowDataUrl: true })
+  return sanitizeUrl(url, { allowRelative: true, allowDataUrl: true })
 }
 
 async function focusPanel(panel: 'documents' | 'videos'): Promise<void> {

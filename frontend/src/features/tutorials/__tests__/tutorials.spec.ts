@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { getPublicTutorialVideos, TUTORIAL_DOCUMENT_URL } from '../api/tutorials'
+import {
+  getPublicTutorialVideos,
+  isValidTutorialCoverUrl,
+  TUTORIAL_DOCUMENT_URL,
+} from '../api/tutorials'
 
 describe('tutorials extension', () => {
   it('reads visible videos, filters incomplete entries, and sorts by sort_order', () => {
@@ -19,5 +23,12 @@ describe('tutorials extension', () => {
     expect(TUTORIAL_DOCUMENT_URL).toBe('https://doc.aiprox.net/doc')
     expect(getPublicTutorialVideos(null)).toEqual([])
     expect(getPublicTutorialVideos({ tutorial_videos: 'invalid' })).toEqual([])
+  })
+
+  it('accepts uploaded local covers without opening arbitrary relative paths', () => {
+    expect(isValidTutorialCoverUrl('/api/v1/tutorials/covers/0123456789abcdef0123456789abcdef.webp')).toBe(true)
+    expect(isValidTutorialCoverUrl('https://example.com/cover.png')).toBe(true)
+    expect(isValidTutorialCoverUrl('/api/v1/tutorials/covers/../config.yaml')).toBe(false)
+    expect(isValidTutorialCoverUrl('/api/v1/settings')).toBe(false)
   })
 })

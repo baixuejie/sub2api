@@ -68,7 +68,7 @@ func NormalizeVideosJSON(raw string) (string, error) {
 			return "", fmt.Errorf("tutorial video %s video_url: %w", video.ID, err)
 		}
 		if video.CoverURL != "" {
-			if err := validateURL(video.CoverURL); err != nil {
+			if err := validateCoverURL(video.CoverURL); err != nil {
 				return "", fmt.Errorf("tutorial video %s cover_url: %w", video.ID, err)
 			}
 		}
@@ -93,6 +93,17 @@ func validateURL(raw string) error {
 		return fmt.Errorf("URL must be an absolute http(s) URL")
 	}
 	return nil
+}
+
+func validateCoverURL(raw string) error {
+	if strings.HasPrefix(raw, tutorialCoverURLPrefix) {
+		filename := strings.TrimPrefix(raw, tutorialCoverURLPrefix)
+		if tutorialCoverNamePattern.MatchString(filename) {
+			return nil
+		}
+		return fmt.Errorf("local cover URL contains an invalid filename")
+	}
+	return validateURL(raw)
 }
 
 // ParsePublicVideos returns enabled, valid videos and fails closed on corrupt data.

@@ -98,15 +98,63 @@
               <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                 {{ localText('封面', 'Cover') }}
               </label>
-              <input
-                v-model="video.cover_url"
-                type="url"
-                class="input font-mono text-sm"
-                placeholder="https://.../cover.jpg"
-              />
-              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                {{ localText('可选，建议使用稳定的 HTTPS 图片地址。', 'Optional. Use a stable HTTPS image URL.') }}
-              </p>
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
+                <div
+                  v-if="safeCoverUrl(video.cover_url)"
+                  class="h-24 w-40 flex-shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-dark-600 dark:bg-dark-800"
+                >
+                  <img
+                    :src="safeCoverUrl(video.cover_url)"
+                    :alt="video.title || localText('视频封面', 'Video cover')"
+                    class="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+                <div class="min-w-0 flex-1 space-y-2">
+                  <input
+                    v-model="video.cover_url"
+                    type="url"
+                    class="input font-mono text-sm"
+                    placeholder="https://.../cover.jpg"
+                  />
+                  <div class="flex flex-wrap items-center gap-2">
+                    <label
+                      class="btn btn-secondary btn-sm cursor-pointer"
+                      :class="{ 'pointer-events-none opacity-60': isUploading(video, index) }"
+                    >
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        class="hidden"
+                        :disabled="isUploading(video, index)"
+                        @change="handleCoverUpload($event, video, index)"
+                      />
+                      <Icon name="upload" size="sm" class="mr-1.5" aria-hidden="true" />
+                      {{
+                        isUploading(video, index)
+                          ? localText('上传中…', 'Uploading...')
+                          : localText('上传图片', 'Upload image')
+                      }}
+                    </label>
+                    <button
+                      v-if="video.cover_url"
+                      type="button"
+                      class="btn btn-secondary btn-sm text-red-600 hover:text-red-700 dark:text-red-400"
+                      :disabled="isUploading(video, index)"
+                      @click="video.cover_url = ''"
+                    >
+                      <Icon name="trash" size="sm" class="mr-1.5" aria-hidden="true" />
+                      {{ localText('清除封面', 'Clear cover') }}
+                    </button>
+                  </div>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ localText('可上传 PNG、JPEG 或 WebP（最大 5 MB），也可直接填写外部图片地址。', 'Upload PNG, JPEG, or WebP (up to 5 MB), or enter an external image URL.') }}
+                  </p>
+                  <p v-if="uploadErrors[videoKey(video, index)]" class="text-xs text-red-600 dark:text-red-300">
+                    {{ uploadErrors[videoKey(video, index)] }}
+                  </p>
+                </div>
+              </div>
             </div>
             <div
               class="md:col-span-2 flex items-center justify-between border-t border-gray-100 pt-3 dark:border-dark-700"
@@ -150,15 +198,24 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { TutorialVideoSetting } from '@/api/admin/settings'
 import Icon from '@/components/icons/Icon.vue'
 import Toggle from '@/components/common/Toggle.vue'
+import { extractApiErrorMessage } from '@/utils/apiError'
+import { sanitizeUrl } from '@/utils/url'
+import {
+  isValidTutorialCoverUrl,
+  TUTORIAL_COVER_MAX_BYTES,
+  uploadTutorialCover,
+} from '../api/tutorials'
 
 const videos = defineModel<TutorialVideoSetting[]>({ required: true })
 const { locale } = useI18n()
 const isZhLocale = computed(() => locale.value.startsWith('zh'))
+const uploadingIds = reactive<Record<string, boolean>>({})
+const uploadErrors = reactive<Record<string, string>>({})
 
 function localText(zh: string, en: string): string {
   return isZhLocale.value ? zh : en
@@ -168,6 +225,53 @@ function normalizeSortOrder(): void {
   videos.value.forEach((video, index) => {
     video.sort_order = index
   })
+}
+
+function videoKey(video: TutorialVideoSetting, index: number): string {
+  return video.id || `index-${index}`
+}
+
+function isUploading(video: TutorialVideoSetting, index: number): boolean {
+  return Boolean(uploadingIds[videoKey(video, index)])
+}
+
+function safeCoverUrl(value: string): string {
+  return sanitizeUrl(value, { allowRelative: true })
+}
+
+async function handleCoverUpload(event: Event, video: TutorialVideoSetting, index: number): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  const key = videoKey(video, index)
+  delete uploadErrors[key]
+  input.value = ''
+  if (!file) return
+
+  const allowedTypes = new Set(['image/png', 'image/jpeg', 'image/webp'])
+  if (!allowedTypes.has(file.type)) {
+    uploadErrors[key] = localText('仅支持 PNG、JPEG 或 WebP 图片。', 'Only PNG, JPEG, or WebP images are supported.')
+    return
+  }
+  if (file.size <= 0 || file.size > TUTORIAL_COVER_MAX_BYTES) {
+    uploadErrors[key] = localText('图片大小必须在 1 字节到 5 MB 之间。', 'The image must be between 1 byte and 5 MB.')
+    return
+  }
+
+  uploadingIds[key] = true
+  try {
+    const result = await uploadTutorialCover(file)
+    if (!result?.url || !isValidTutorialCoverUrl(result.url)) {
+      throw new Error(localText('服务器返回了无效的封面地址。', 'The server returned an invalid cover URL.'))
+    }
+    video.cover_url = result.url
+  } catch (error) {
+    uploadErrors[key] = extractApiErrorMessage(
+      error,
+      localText('封面上传失败，请稍后重试。', 'Cover upload failed. Please try again.')
+    )
+  } finally {
+    delete uploadingIds[key]
+  }
 }
 
 function addVideo(): void {

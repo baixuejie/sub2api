@@ -2,10 +2,12 @@
 package routes
 
 import (
+	"github.com/Wei-Shaw/sub2api/internal/extensions/tutorials"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/Wei-Shaw/sub2api/internal/setup"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,6 +30,9 @@ func RegisterAdminRoutes(
 	admin.Use(gin.HandlerFunc(auditLog))
 	admin.Use(middleware.AdminComplianceGuard(settingService))
 	{
+		// 教程 Extension（管理员配置的封面上传）
+		tutorials.RegisterAdminRoutes(admin, setup.GetDataDir())
+
 		// 部署与运营合规确认
 		registerAdminComplianceRoutes(admin, h)
 
