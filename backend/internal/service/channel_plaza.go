@@ -59,6 +59,7 @@ func (s *ChannelService) ListPlazaGroups(ctx context.Context) ([]PlazaGroup, err
 	byGroup := make(map[int64]*PlazaGroup, len(groups))
 	groupEnt := make(map[int64]*Group, len(groups))
 	order := make([]int64, 0, len(groups))
+	legacyGroups := make(map[int64]struct{}, len(groups))
 	for i := range groups {
 		g := &groups[i]
 		byGroup[g.ID] = &PlazaGroup{
@@ -78,6 +79,24 @@ func (s *ChannelService) ListPlazaGroups(ctx context.Context) ([]PlazaGroup, err
 		}
 		groupEnt[g.ID] = g
 		order = append(order, g.ID)
+		cfg := normalizeGroupModelsListConfig(g.ModelsListConfig)
+		// A zero-value config denotes a legacy group whose catalog still comes
+		// from active channels. Explicitly disabled or empty-enabled configs stay
+		// hidden instead of silently falling back.
+		if !cfg.Enabled && len(cfg.Models) == 0 {
+			legacyGroups[g.ID] = struct{}{}
+		}
+	}
+
+	var channels []Channel
+	if len(legacyGroups) > 0 {
+		channels, err = s.repo.ListAll(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("list channels: %w", err)
+		}
+		sort.SliceStable(channels, func(i, j int) bool {
+			return strings.ToLower(channels[i].Name) < strings.ToLower(channels[j].Name)
+		})
 	}
 
 	for _, gid := range order {
@@ -97,6 +116,12 @@ func (s *ChannelService) ListPlazaGroups(ctx context.Context) ([]PlazaGroup, err
 				continue
 			}
 			seen[name] = struct{}{}
+			platform := pg.Platform
+			if platform == PlatformComposite {
+				if detected, ok := DetectModelPlatform(name); ok {
+					platform = detected
+				}
+			}
 			var pricing *ChannelModelPricing
 			if s.pricingService != nil {
 				if lp := s.pricingService.GetModelPricing(name); lp != nil {
@@ -105,9 +130,64 @@ func (s *ChannelService) ListPlazaGroups(ctx context.Context) ([]PlazaGroup, err
 			}
 			pg.Models = append(pg.Models, PlazaModel{
 				Name:     name,
-				Platform: pg.Platform,
+				Platform: platform,
 				Pricing:  plazaImageDisplayPricing(pricing, g),
 			})
+		}
+	}
+
+	// Preserve the upstream channel-derived catalog for groups that predate
+	// models_list_config, including Composite groups and concrete platforms.
+	type modelKey struct {
+		platform string
+		name     string
+	}
+	modelIdx := make(map[int64]map[modelKey]int, len(legacyGroups))
+	for i := range channels {
+		ch := &channels[i]
+		if ch.Status != StatusActive {
+			continue
+		}
+		ch.normalizeBillingModelSource()
+		supported := ch.SupportedModels()
+		s.fillGlobalPricingFallback(supported)
+		for _, gid := range ch.GroupIDs {
+			if _, legacy := legacyGroups[gid]; !legacy {
+				continue
+			}
+			pg, ok := byGroup[gid]
+			if !ok {
+				continue
+			}
+			idx := modelIdx[gid]
+			if idx == nil {
+				idx = make(map[modelKey]int, len(supported))
+				modelIdx[gid] = idx
+			}
+			for j := range supported {
+				m := supported[j]
+				if pg.Platform == PlatformComposite {
+					if !isConcreteRequestPlatform(m.Platform) {
+						continue
+					}
+				} else if m.Platform != pg.Platform {
+					continue
+				}
+				pricing := plazaImageDisplayPricing(m.Pricing, groupEnt[gid])
+				key := modelKey{platform: m.Platform, name: m.Name}
+				if at, seen := idx[key]; seen {
+					if pg.Models[at].Pricing == nil && pricing != nil {
+						pg.Models[at].Pricing = pricing
+					}
+					continue
+				}
+				idx[key] = len(pg.Models)
+				pg.Models = append(pg.Models, PlazaModel{
+					Name:     m.Name,
+					Platform: m.Platform,
+					Pricing:  pricing,
+				})
+			}
 		}
 	}
 
@@ -118,7 +198,12 @@ func (s *ChannelService) ListPlazaGroups(ctx context.Context) ([]PlazaGroup, err
 		if len(pg.Models) == 0 {
 			continue
 		}
-		sort.SliceStable(pg.Models, func(i, j int) bool { return pg.Models[i].Name < pg.Models[j].Name })
+		sort.SliceStable(pg.Models, func(i, j int) bool {
+			if pg.Models[i].Name != pg.Models[j].Name {
+				return pg.Models[i].Name < pg.Models[j].Name
+			}
+			return pg.Models[i].Platform < pg.Models[j].Platform
+		})
 		for j := range pg.Models {
 			pg.Models[j].OfficialPricing = s.lookupOfficialPricing(pg.Models[j].Name, officialMemo)
 		}

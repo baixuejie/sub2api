@@ -18,6 +18,39 @@ func newGroupPlazaService(groups []Group, pricing *PricingService) *ChannelServi
 	}, &stubGroupRepoForAvailable{activeGroups: groups}, nil, pricing)
 }
 
+func newLegacyPlazaService(channels []Channel, groups []Group, pricing *PricingService) *ChannelService {
+	return NewChannelService(&mockChannelRepository{
+		listAllFn: func(context.Context) ([]Channel, error) {
+			return channels, nil
+		},
+	}, &stubGroupRepoForAvailable{activeGroups: groups}, nil, pricing)
+}
+
+func TestListPlazaGroups_LegacyCompositeIncludesConcretePlatforms(t *testing.T) {
+	anthropicPrice := 3e-6
+	openAIPrice := 2e-6
+	channel := Channel{
+		ID: 1, Name: "multi", Status: StatusActive, GroupIDs: []int64{10},
+		ModelPricing: []ChannelModelPricing{
+			{Platform: PlatformAnthropic, Models: []string{"shared-model"}, InputPrice: &anthropicPrice},
+			{Platform: PlatformOpenAI, Models: []string{"shared-model"}, InputPrice: &openAIPrice},
+			{Platform: "", Models: []string{"empty-platform"}},
+			{Platform: PlatformComposite, Models: []string{"nested-composite"}},
+		},
+	}
+	groups := []Group{{ID: 10, Name: "composite", Platform: PlatformComposite, RateMultiplier: 1}}
+
+	out, err := newLegacyPlazaService([]Channel{channel}, groups, nil).ListPlazaGroups(context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Len(t, out[0].Models, 2)
+	require.Equal(t, PlatformAnthropic, out[0].Models[0].Platform)
+	require.Equal(t, PlatformOpenAI, out[0].Models[1].Platform)
+	require.InDelta(t, anthropicPrice, *out[0].Models[0].Pricing.InputPrice, 1e-12)
+	require.InDelta(t, openAIPrice, *out[0].Models[1].Pricing.InputPrice, 1e-12)
+}
+
 func TestListPlazaGroups_UsesEnabledGroupModelsWithoutChannels(t *testing.T) {
 	groups := []Group{
 		{ID: 10, Name: "public", Description: "desc", Platform: "openai", RateMultiplier: 1,
@@ -90,8 +123,10 @@ func TestListPlazaGroups_GroupImagePriceOverridesOfficialPricing(t *testing.T) {
 	p := out[0].Models[0].Pricing
 	require.NotNil(t, p)
 	require.Equal(t, BillingModeImage, p.BillingMode)
-	require.Len(t, p.Intervals, 1)
+	require.Len(t, p.Intervals, 3)
 	require.InDelta(t, groupPrice, *p.Intervals[0].PerRequestPrice, 1e-12)
+	require.InDelta(t, 0.04, *p.Intervals[1].PerRequestPrice, 1e-12)
+	require.InDelta(t, 0.04, *p.Intervals[2].PerRequestPrice, 1e-12)
 }
 
 func TestListPlazaGroups_GroupRepoErrorPropagates(t *testing.T) {
