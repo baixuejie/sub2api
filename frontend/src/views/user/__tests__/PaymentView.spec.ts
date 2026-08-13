@@ -4,6 +4,7 @@ import PaymentView from '../PaymentView.vue'
 import { PAYMENT_RECOVERY_STORAGE_KEY } from '@/components/payment/paymentFlow'
 import { formatPaymentAmount } from '@/components/payment/currency'
 import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
+import RechargeNotice from '@/features/recharge-notice/components/RechargeNotice.vue'
 import type { CheckoutInfoResponse, MethodLimit, SubscriptionPlan } from '@/types/payment'
 
 const routeState = vi.hoisted(() => ({
@@ -289,6 +290,20 @@ describe('PaymentView subscription plan grid', () => {
       'sm:grid-cols-2',
       'lg:grid-cols-3',
     ]))
+  })
+})
+
+describe('PaymentView recharge notice', () => {
+  it('only renders the recharge notice after switching to the top-up tab', async () => {
+    const wrapper = await mountSubscriptionPlanList(1)
+
+    expect(wrapper.findComponent(RechargeNotice).exists()).toBe(false)
+
+    const topUpTab = wrapper.findAll('button').find((button) => button.text() === 'payment.tabTopUp')
+    expect(topUpTab).toBeDefined()
+    await topUpTab!.trigger('click')
+
+    expect(wrapper.findComponent(RechargeNotice).exists()).toBe(true)
   })
 })
 
