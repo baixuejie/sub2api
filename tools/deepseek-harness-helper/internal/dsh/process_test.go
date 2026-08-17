@@ -40,8 +40,8 @@ func TestChildEnvironmentRemovesManagedCredentialShadow(t *testing.T) {
 }
 
 func TestDSHStartupTimeoutAllowsSlowFirstLaunch(t *testing.T) {
-	if dshStartupTimeout < 2*time.Minute {
-		t.Fatalf("dshStartupTimeout = %s, want at least 2m", dshStartupTimeout)
+	if dshStartupTimeout < 10*time.Minute {
+		t.Fatalf("dshStartupTimeout = %s, want at least 10m", dshStartupTimeout)
 	}
 }
 

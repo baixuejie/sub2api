@@ -20,7 +20,7 @@ var webURLPattern = regexp.MustCompile(`(?m)^dsh web: (http://(?:127\.0\.0\.1|\[
 
 const maxStartupLogBytes = 2 << 20
 
-const dshStartupTimeout = 2 * time.Minute
+const dshStartupTimeout = 10 * time.Minute
 
 func StopManaged(ctx context.Context, env Environment, paths config.Paths, dshBin, version string) error {
 	if err := config.EnsurePrivateDir(paths.DataDir); err != nil {
