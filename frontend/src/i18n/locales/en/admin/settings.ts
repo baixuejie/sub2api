@@ -638,7 +638,9 @@ export default {
         compactHome: 'Compact Home Page',
         compactHomeHint: 'Show a restrained site identity page when no custom home page content is set.',
         hideCcsImportButton: 'Hide CCS Import Button',
-        hideCcsImportButtonHint: 'When enabled, the "Import to CCS" button will be hidden on the API Keys page'
+        hideCcsImportButtonHint: 'When enabled, the "Import to CCS" button will be hidden on the API Keys page',
+        deepSeekHarness: 'DeepSeek Harness One-Click Install',
+        deepSeekHarnessHint: 'Show the API Keys action and enable short-lived ticket and local Helper endpoints.'
       },
       purchase: {
         title: 'Recharge / Subscription Page',

@@ -1,0 +1,6 @@
+/dist/
+!/scripts/
+!/scripts/*.ps1
+!/scripts/*.sh
+*.test
+coverage.out

@@ -633,7 +633,9 @@ export default {
         compactHome: '简洁首页',
         compactHomeHint: '未设置自定义首页内容时，展示简洁的站点信息页面。',
         hideCcsImportButton: '隐藏 CCS 导入按钮',
-        hideCcsImportButtonHint: '启用后将在 API Keys 页面隐藏"导入 CCS"按钮'
+        hideCcsImportButtonHint: '启用后将在 API Keys 页面隐藏"导入 CCS"按钮',
+        deepSeekHarness: 'DeepSeek Harness 一键安装',
+        deepSeekHarnessHint: '在 API Keys 页面显示安装入口，并启用短时票据和本地 Helper 接口。'
       },
       purchase: {
         title: '充值/订阅页面',

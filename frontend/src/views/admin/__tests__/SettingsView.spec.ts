@@ -389,6 +389,7 @@ const baseSettingsResponse = {
   home_content: "",
   compact_home_enabled: false,
   hide_ccs_import_button: false,
+  deepseek_harness_enabled: false,
   table_default_page_size: 20,
   table_page_size_options: [10, 20, 50, 100],
   backend_mode_enabled: false,
@@ -732,6 +733,22 @@ describe("admin SettingsView payment visible method controls", () => {
 
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({ compact_home_enabled: true }),
+    );
+  });
+
+  it("keeps DeepSeek Harness disabled by default and saves explicit opt-in", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    const toggle = wrapper.get('[data-testid="deepseek-harness-toggle"]');
+    expect((toggle.element as HTMLInputElement).checked).toBe(false);
+
+    await toggle.setValue(true);
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ deepseek_harness_enabled: true }),
     );
   });
 

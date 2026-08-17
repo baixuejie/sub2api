@@ -1,0 +1,64 @@
+name: DeepSeek Harness Helper Build
+
+on:
+  push:
+    tags:
+      - 'dsh-helper-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Helper version (for example 0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-unsigned:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: tools/deepseek-harness-helper/go.mod
+          cache-dependency-path: tools/deepseek-harness-helper/go.sum
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#dsh-helper-v}"
+          fi
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build and test Helper
+        working-directory: tools/deepseek-harness-helper
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: sh ./scripts/build.sh
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: deepseek-harness-helper-${{ steps.version.outputs.value }}
+          path: |
+            tools/deepseek-harness-helper/dist/deepseek-harness-helper-windows-amd64.exe
+            tools/deepseek-harness-helper/dist/deepseek-harness-helper-windows-arm64.exe
+            tools/deepseek-harness-helper/dist/deepseek-harness-helper-linux-amd64.tar.gz
+            tools/deepseek-harness-helper/dist/deepseek-harness-helper-linux-arm64.tar.gz
+            tools/deepseek-harness-helper/dist/deepseek-harness-helper-darwin-amd64.tar.gz
+            tools/deepseek-harness-helper/dist/deepseek-harness-helper-darwin-arm64.tar.gz
+            tools/deepseek-harness-helper/dist/SHA256SUMS
+
+      - name: Block unsigned publication
+        if: startsWith(github.ref, 'refs/tags/dsh-helper-v')
+        run: |
+          echo "Unsigned Helper artifacts were built and retained as a workflow artifact."
+          echo "Sign Windows binaries and codesign/notarize both macOS apps in the protected release pipeline before publishing the tag assets."

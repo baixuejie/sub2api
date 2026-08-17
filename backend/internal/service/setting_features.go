@@ -61,6 +61,18 @@ func (s *SettingService) IsPromoCodeEnabled(ctx context.Context) bool {
 	return value != "false"
 }
 
+// IsDeepSeekHarnessEnabled checks the opt-in extension switch and fails closed.
+func (s *SettingService) IsDeepSeekHarnessEnabled(ctx context.Context) bool {
+	if s == nil || s.settingRepo == nil {
+		return false
+	}
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyDeepSeekHarnessEnabled)
+	if err != nil {
+		return false
+	}
+	return value == "true"
+}
+
 // IsInvitationCodeEnabled 检查是否启用邀请码注册功能
 func (s *SettingService) IsInvitationCodeEnabled(ctx context.Context) bool {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyInvitationCodeEnabled)
