@@ -27,12 +27,29 @@ jobs:
           go-version-file: tools/deepseek-harness-helper/go.mod
           cache-dependency-path: tools/deepseek-harness-helper/go.sum
 
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.19.0'
+
+      - name: Install pinned DSH for schema smoke test
+        run: npm install --prefix "$RUNNER_TEMP/dsh-smoke" --no-audit --no-fund --save-exact @deepseek-ai/dsh@0.1.0-rc.6
+
+      - name: Validate generated config with pinned DSH
+        working-directory: tools/deepseek-harness-helper
+        run: |
+          DSH_SMOKE_NODE="$(command -v node)" \
+          DSH_SMOKE_BIN="$RUNNER_TEMP/dsh-smoke/node_modules/@deepseek-ai/dsh/lib/bin.js" \
+          go test -count=1 ./internal/dsh -run '^TestPinnedDSHLoadsGeneratedConfiguration$'
+
       - name: Resolve version
         id: version
         shell: bash
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ inputs.version }}"
+            VERSION="$DISPATCH_VERSION"
           else
             VERSION="${GITHUB_REF_NAME#dsh-helper-v}"
           fi

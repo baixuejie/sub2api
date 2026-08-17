@@ -69,7 +69,7 @@ POSIX shell 构建：
 VERSION=0.1.0 ./scripts/build.sh
 ```
 
-输出在 `dist/`：Windows amd64/arm64 自安装 `.exe`、Linux amd64/arm64 `.tar.gz`、macOS amd64/arm64 `.app.tar.gz`，以及 `SHA256SUMS`。仓库工作流 `.github/workflows/deepseek-harness-helper-build.yml` 只生成并保留未签名 CI artifact，不会直接发布；受保护的发布流水线完成 Windows 签名以及 macOS codesign/notarize 后，才能上传到 `dsh-helper-v*` Release。
+输出在 `dist/`：Windows amd64/arm64 自安装 `.exe`、Linux amd64/arm64 `.tar.gz`、macOS amd64/arm64 `.app.tar.gz`，以及 `SHA256SUMS`。仓库工作流 `.github/workflows/deepseek-harness-helper-build.yml` 会用 Node 22.19.0 和精确的 DSH rc.6 启动生成配置，并验证真实页面标记及 `llm.providers` RPC 中的受管 provider，然后只生成并保留未签名 CI artifact，不会直接发布；受保护的发布流水线完成 Windows 签名以及 macOS codesign/notarize 后，才能上传到 `dsh-helper-v*` Release。
 
 ## 协议注册
 
