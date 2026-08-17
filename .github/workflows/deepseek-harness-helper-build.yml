@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Helper version (for example 0.1.0)'
+        description: 'Helper version (for example 0.1.1)'
         required: true
         type: string
 
@@ -15,7 +15,28 @@ permissions:
   contents: read
 
 jobs:
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: tools/deepseek-harness-helper/go.mod
+          cache-dependency-path: tools/deepseek-harness-helper/go.sum
+
+      - name: Test Windows Helper
+        working-directory: tools/deepseek-harness-helper
+        run: |
+          go test -count=1 ./...
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          go vet ./...
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
   build-unsigned:
+    needs: test-windows
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

@@ -47,7 +47,7 @@ const profile: HarnessProfileResponse = {
   protocol_version: '1',
   tool_id: 'deepseek-harness',
   tool_version: '0.1.0-rc.6',
-  minimum_helper_version: '0.1.0',
+  minimum_helper_version: '0.1.1',
   dsh_version: '0.1.0-rc.6'
 }
 

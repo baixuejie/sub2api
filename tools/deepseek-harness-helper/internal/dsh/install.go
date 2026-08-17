@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -13,19 +14,32 @@ import (
 
 const SupportedVersion = "0.1.0-rc.6"
 
-func Install(ctx context.Context, run runner.Runner, env Environment, paths config.Paths, version string) (string, error) {
+func Install(
+	ctx context.Context,
+	run runner.Runner,
+	env Environment,
+	paths config.Paths,
+	version string,
+	stdout, stderr io.Writer,
+) (string, error) {
 	if version != SupportedVersion {
 		return "", fmt.Errorf("unsupported dsh_version: expected %s", SupportedVersion)
 	}
 	if err := config.EnsurePrivateDir(paths.InstallDir); err != nil {
 		return "", err
 	}
+	bin := filepath.Join(paths.InstallDir, "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js")
+	if installedVersion(ctx, run, env.NodePath, bin) == version {
+		if stdout != nil {
+			_, _ = fmt.Fprintf(stdout, "DeepSeek Harness %s is already installed; skipping npm install.\n", version)
+		}
+		return bin, nil
+	}
 	packageName := "@deepseek-ai/dsh@" + version
 	args := []string{"install", "--prefix", paths.InstallDir, "--no-audit", "--no-fund", "--save-exact", packageName}
-	if _, err := run.Run(ctx, env.NPMPath, args, paths.InstallDir, os.Stdout, os.Stderr); err != nil {
+	if _, err := run.Run(ctx, env.NPMPath, args, paths.InstallDir, stdout, stderr); err != nil {
 		return "", fmt.Errorf("npm install %s: %w", packageName, err)
 	}
-	bin := filepath.Join(paths.InstallDir, "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js")
 	if info, err := os.Stat(bin); err != nil || info.IsDir() {
 		return "", errors.New("installed DSH CLI entry is missing")
 	}
@@ -37,6 +51,20 @@ func Install(ctx context.Context, run runner.Runner, env Environment, paths conf
 		return "", fmt.Errorf("installed DSH version mismatch: expected %s, got %s", version, stringTrim(verify.Stdout))
 	}
 	return bin, nil
+}
+
+func installedVersion(ctx context.Context, run runner.Runner, nodePath, bin string) string {
+	if run == nil || nodePath == "" {
+		return ""
+	}
+	if info, err := os.Stat(bin); err != nil || info.IsDir() {
+		return ""
+	}
+	result, err := run.Run(ctx, nodePath, []string{bin, "--version"}, filepath.Dir(bin), nil, nil)
+	if err != nil {
+		return ""
+	}
+	return stringTrim(result.Stdout)
 }
 
 func stringTrim(value string) string {

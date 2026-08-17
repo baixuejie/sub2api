@@ -119,24 +119,22 @@ func TestAdapterRegistryRejectsUnsupportedToolVersion(t *testing.T) {
 
 func TestAdapterRegistryRejectsMinimumHelperVersion(t *testing.T) {
 	t.Parallel()
-	for _, current := range []string{"0.1.0", "dev", ""} {
-		current := current
-		t.Run(currentName(current), func(t *testing.T) {
-			t.Parallel()
-			task := validVersionedTask()
-			task.MinimumHelperVersion = "0.1.1"
-			_, _, err := DefaultAdapterRegistry().Resolve(task, current)
-			if err == nil || !strings.Contains(err.Error(), "does not satisfy minimum_helper_version") {
-				t.Fatalf("error = %v", err)
-			}
-		})
+	task := validVersionedTask()
+	task.MinimumHelperVersion = "0.1.1"
+	_, _, err := DefaultAdapterRegistry().Resolve(task, "0.1.0")
+	if err == nil || !strings.Contains(err.Error(), "does not satisfy minimum_helper_version") {
+		t.Fatalf("error = %v", err)
 	}
 }
 
 func TestAdapterRegistryUsesDevelopmentCompatibilityVersion(t *testing.T) {
 	t.Parallel()
-	if _, _, err := DefaultAdapterRegistry().Resolve(validVersionedTask(), "dev"); err != nil {
-		t.Fatal(err)
+	for _, current := range []string{"dev", ""} {
+		task := validVersionedTask()
+		task.MinimumHelperVersion = DevelopmentHelperVersion
+		if _, _, err := DefaultAdapterRegistry().Resolve(task, current); err != nil {
+			t.Fatalf("Resolve(current=%q) error = %v", current, err)
+		}
 	}
 }
 

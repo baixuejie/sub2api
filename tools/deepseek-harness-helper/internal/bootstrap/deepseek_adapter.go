@@ -61,17 +61,20 @@ func (DeepSeekHarnessAdapter) Execute(ctx context.Context, execution AdapterExec
 	if err := execution.Report(StatusEvent{Status: StatusCheckingEnvironment, Stage: StatusCheckingEnvironment, Message: "Checking Node.js and npm", Progress: 10}); err != nil {
 		return AdapterResult{}, &workflowReportError{cause: err}
 	}
-	environment, err := dsh.CheckEnvironment(ctx, execution.Runner)
-	if err != nil {
-		return AdapterResult{}, &workflowStageError{code: "environment_check_failed", cause: err}
-	}
-	if err := execution.Report(StatusEvent{Status: StatusInstalling, Stage: StatusInstalling, Message: "Installing the pinned DeepSeek Harness version", Progress: 30}); err != nil {
-		return AdapterResult{}, &workflowReportError{cause: err}
-	}
 
 	var dshBin, harnessURL string
 	localErr := config.WithBootstrapLock(execution.Paths, func() error {
-		dshBin, err = dsh.Install(ctx, execution.Runner, environment, execution.Paths, execution.Task.ToolVersion)
+		environment, err := dsh.EnsureEnvironment(ctx, execution.Runner, execution.Output, execution.ErrorOutput)
+		if err != nil {
+			return &workflowStageError{code: "environment_check_failed", cause: err}
+		}
+		if err := execution.Report(StatusEvent{Status: StatusInstalling, Stage: StatusInstalling, Message: "Installing the pinned DeepSeek Harness version", Progress: 30}); err != nil {
+			return &workflowReportError{cause: err}
+		}
+		dshBin, err = dsh.Install(
+			ctx, execution.Runner, environment, execution.Paths, execution.Task.ToolVersion,
+			execution.Output, execution.ErrorOutput,
+		)
 		if err != nil {
 			return &workflowStageError{code: "dsh_install_failed", cause: err}
 		}

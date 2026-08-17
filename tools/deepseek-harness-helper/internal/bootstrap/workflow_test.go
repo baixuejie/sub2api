@@ -1,12 +1,14 @@
 package bootstrap
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -68,6 +70,7 @@ func TestWorkflowDispatchesThroughRegisteredAdapter(t *testing.T) {
 	}
 	workflow := Workflow{
 		Paths: config.PathsFor(t.TempDir()), Registry: registry, HelperVersion: "0.1.0",
+		Output:       &bytes.Buffer{},
 		ConfirmTrust: func(context.Context, consent.TrustRequest) (bool, error) { return true, nil },
 	}
 	launchURI := "sub2api-harness://bootstrap?server=" + url.QueryEscape(server.URL) + "&ticket=ticket&operation_id=operation&extension_id=test-extension"
@@ -77,6 +80,12 @@ func TestWorkflowDispatchesThroughRegisteredAdapter(t *testing.T) {
 	}
 	if harnessURL != "http://127.0.0.1:39000" || executions.Load() != 1 || completed.Load() != 1 {
 		t.Fatalf("url=%q executions=%d completed=%d", harnessURL, executions.Load(), completed.Load())
+	}
+	output := workflow.Output.(*bytes.Buffer).String()
+	for _, expected := range []string{"[  0%] Parsing", "[  5%] Confirming", "[  8%] Exchanging", "[100%] ready", harnessURL} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("output %q does not contain %q", output, expected)
+		}
 	}
 }
 

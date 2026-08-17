@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/tools/deepseek-harness-helper/internal/config"
@@ -17,6 +18,8 @@ type AdapterExecution struct {
 	Paths       config.Paths
 	ToolDataDir string
 	Report      func(StatusEvent) error
+	Output      io.Writer
+	ErrorOutput io.Writer
 }
 
 type AdapterResult struct {

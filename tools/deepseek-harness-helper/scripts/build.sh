@@ -15,6 +15,7 @@ trap 'rm -rf "$STAGING"' EXIT
 cd "$ROOT"
 
 go test ./...
+go vet ./...
 
 for target in windows/amd64 windows/arm64 linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
   GOOS=${target%/*}
@@ -38,7 +39,7 @@ for arch in amd64 arm64; do
   app_parent="$STAGING/darwin-$arch"
   app="$app_parent/DeepSeek Harness Helper.app/Contents"
   mkdir -p "$app/MacOS"
-  cp "$ROOT/packaging/macos/Info.plist" "$app/Info.plist"
+  sed "s/__HELPER_VERSION__/$VERSION/g" "$ROOT/packaging/macos/Info.plist" > "$app/Info.plist"
   cp "$OUT/deepseek-harness-helper-darwin-$arch" "$app/MacOS/deepseek-harness-helper"
   chmod 755 "$app/MacOS/deepseek-harness-helper"
   tar -czf "$OUT/deepseek-harness-helper-darwin-$arch.tar.gz" -C "$app_parent" "DeepSeek Harness Helper.app"

@@ -5,13 +5,13 @@
 ## 启用前提
 
 1. 在站点设置中配置公开 `api_base_url`。生产环境必须使用 HTTPS；仅 loopback 本地开发允许 HTTP。Provider 端点会规范化为该地址加一个 `/v1`。
-2. 发布并签名 `tools/deepseek-harness-helper/` 的六平台产物。默认下载版本为 `dsh-helper-v0.1.0`。
+2. 发布并签名 `tools/deepseek-harness-helper/` 的六平台产物。默认下载版本为 `dsh-helper-v0.1.1`。
 3. 确认 Redis 可用，然后再启用 Feature Flag `ext_deepseek_harness_enabled`。
 
 可通过环境变量覆盖 Helper 发布位置：
 
 ```text
-DEEPSEEK_HARNESS_HELPER_RELEASE_BASE_URL=https://downloads.example.com/dsh-helper-v0.1.0
+DEEPSEEK_HARNESS_HELPER_RELEASE_BASE_URL=https://downloads.example.com/dsh-helper-v0.1.1
 DEEPSEEK_HARNESS_HELPER_RELEASES_PAGE=https://downloads.example.com/deepseek-harness-helper
 ```
 
@@ -49,7 +49,7 @@ POST /api/v1/deepseek-harness/sessions/:id/events       Bearer event token
   "protocol_version": "1",
   "tool_id": "deepseek-harness",
   "tool_version": "0.1.0-rc.6",
-  "minimum_helper_version": "0.1.0"
+  "minimum_helper_version": "0.1.1"
 }
 ```
 

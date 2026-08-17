@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -21,6 +22,30 @@ type Environment struct {
 	NodeVersion string
 	NPMPath     string
 	NPMVersion  string
+}
+
+func EnsureEnvironment(ctx context.Context, run runner.Runner, stdout, stderr io.Writer) (Environment, error) {
+	environment, err := CheckEnvironment(ctx, run)
+	if err == nil {
+		writeEnvironmentReady(stdout, environment)
+		return environment, nil
+	}
+	if stdout != nil {
+		_, _ = fmt.Fprintf(stdout, "Node.js environment requires repair: %v\n", err)
+	}
+	environment, err = repairEnvironment(ctx, run, stdout, stderr, err)
+	if err != nil {
+		return Environment{}, err
+	}
+	writeEnvironmentReady(stdout, environment)
+	return environment, nil
+}
+
+func writeEnvironmentReady(output io.Writer, environment Environment) {
+	if output == nil {
+		return
+	}
+	_, _ = fmt.Fprintf(output, "Node.js %s and npm %s are ready.\n", environment.NodeVersion, environment.NPMVersion)
 }
 
 func CheckEnvironment(ctx context.Context, run runner.Runner) (Environment, error) {

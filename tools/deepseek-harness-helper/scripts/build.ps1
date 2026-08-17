@@ -24,6 +24,9 @@ $targets = @(
 Push-Location $root
 try {
     go test ./...
+    if ($LASTEXITCODE -ne 0) { throw "go test failed" }
+    go vet ./...
+    if ($LASTEXITCODE -ne 0) { throw "go vet failed" }
     foreach ($target in $targets) {
         $env:CGO_ENABLED = "0"
         $env:GOOS = $target.GOOS
@@ -46,7 +49,10 @@ try {
         $contents = Join-Path $app "Contents"
         $macos = Join-Path $contents "MacOS"
         New-Item -ItemType Directory -Force $macos | Out-Null
-        Copy-Item (Join-Path $root "packaging/macos/Info.plist") (Join-Path $contents "Info.plist") -Force
+        $plistTemplate = Get-Content -Raw -LiteralPath (Join-Path $root "packaging/macos/Info.plist")
+        if (-not $plistTemplate.Contains("__HELPER_VERSION__")) { throw "Info.plist version placeholder is missing" }
+        $plistContent = $plistTemplate.Replace("__HELPER_VERSION__", $Version)
+        Set-Content -LiteralPath (Join-Path $contents "Info.plist") -Value $plistContent -Encoding utf8
         Copy-Item (Join-Path $out "deepseek-harness-helper-darwin-$arch") (Join-Path $macos "deepseek-harness-helper") -Force
         $darwinArchive = Join-Path $out "deepseek-harness-helper-darwin-$arch.tar.gz"
         tar -czf $darwinArchive -C (Split-Path -Parent $app) "DeepSeek Harness Helper.app"

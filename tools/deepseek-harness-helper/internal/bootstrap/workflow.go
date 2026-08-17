@@ -24,6 +24,7 @@ type Workflow struct {
 }
 
 func (w *Workflow) Run(ctx context.Context, rawURI string) (string, error) {
+	w.writeProgress(0, "Parsing the Sub2API local-tool request")
 	launch, err := ParseLaunchURI(rawURI)
 	if err != nil {
 		return "", err
@@ -31,6 +32,7 @@ func (w *Workflow) Run(ctx context.Context, rawURI string) (string, error) {
 	if w.Paths.TrustedSitesFile == "" {
 		return "", errors.New("trusted server file path is required")
 	}
+	w.writeProgress(5, fmt.Sprintf("Confirming access to %s (%s)", launch.Server, launch.ExtensionID))
 	if err := consent.EnsureTrusted(ctx, w.Paths.TrustedSitesFile, launch.Server, launch.ExtensionID, w.ConfirmTrust); err != nil {
 		return "", err
 	}
@@ -38,6 +40,7 @@ func (w *Workflow) Run(ctx context.Context, rawURI string) (string, error) {
 	if client == nil {
 		client = NewClient()
 	}
+	w.writeProgress(8, "Exchanging the one-time installation ticket")
 	task, err := client.Exchange(ctx, launch)
 	if err != nil {
 		return "", err
@@ -59,6 +62,7 @@ func (w *Workflow) Run(ctx context.Context, rawURI string) (string, error) {
 		event := StatusEvent{
 			Status: StatusFailed, Stage: StatusFailed, Message: publicFailure(err), Progress: 100, ErrorCode: code,
 		}
+		w.writeStatusEvent(event)
 		if reportErr := client.Report(ctx, task, event); reportErr != nil {
 			return "", fmt.Errorf("%w; additionally failed to report status: %v", err, reportErr)
 		}
@@ -67,6 +71,7 @@ func (w *Workflow) Run(ctx context.Context, rawURI string) (string, error) {
 	task = normalizedTask
 	var reportWarnings []error
 	report := func(event StatusEvent) error {
+		w.writeStatusEvent(event)
 		err := client.Report(ctx, task, event)
 		if IsReportOutcomeUnknown(err) {
 			reportWarnings = append(reportWarnings, err)
@@ -76,6 +81,7 @@ func (w *Workflow) Run(ctx context.Context, rawURI string) (string, error) {
 	}
 	fail := func(code string, cause error) (string, error) {
 		event := StatusEvent{Status: StatusFailed, Stage: StatusFailed, Message: publicFailure(cause), Progress: 100, ErrorCode: code}
+		w.writeStatusEvent(event)
 		if reportErr := client.Report(ctx, task, event); reportErr != nil {
 			return "", fmt.Errorf("%w; additionally failed to report status: %v", cause, reportErr)
 		}
@@ -91,6 +97,7 @@ func (w *Workflow) Run(ctx context.Context, rawURI string) (string, error) {
 	}
 	result, executionErr := adapter.Execute(ctx, AdapterExecution{
 		Task: task, Runner: run, Paths: w.Paths, ToolDataDir: toolDataDir, Report: report,
+		Output: w.Output, ErrorOutput: w.WarningOutput,
 	})
 	if executionErr != nil {
 		var reportErr *workflowReportError
@@ -103,7 +110,9 @@ func (w *Workflow) Run(ctx context.Context, rawURI string) (string, error) {
 		}
 		return fail("tool_execution_failed", executionErr)
 	}
-	if err := client.Report(ctx, task, StatusEvent{Status: StatusCompleted, Stage: StatusCompleted, Message: result.CompletionMessage, Progress: 100, HarnessURL: result.OpenURL}); err != nil {
+	completedEvent := StatusEvent{Status: StatusCompleted, Stage: StatusCompleted, Message: result.CompletionMessage, Progress: 100, HarnessURL: result.OpenURL}
+	w.writeStatusEvent(completedEvent)
+	if err := client.Report(ctx, task, completedEvent); err != nil {
 		reportWarnings = append(reportWarnings, err)
 	}
 	if w.WarningOutput != nil {
@@ -115,6 +124,26 @@ func (w *Workflow) Run(ctx context.Context, rawURI string) (string, error) {
 		_, _ = fmt.Fprintln(w.Output, result.OpenURL)
 	}
 	return result.OpenURL, nil
+}
+
+func (w *Workflow) writeStatusEvent(event StatusEvent) {
+	w.writeProgress(event.Progress, event.Message)
+}
+
+func (w *Workflow) writeProgress(progress int, message string) {
+	if w.Output == nil {
+		return
+	}
+	if progress < 0 {
+		progress = 0
+	} else if progress > 100 {
+		progress = 100
+	}
+	message = strings.TrimSpace(message)
+	if message == "" {
+		message = "Working"
+	}
+	_, _ = fmt.Fprintf(w.Output, "[%3d%%] %s\n", progress, message)
 }
 
 type workflowStageError struct {
