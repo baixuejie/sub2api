@@ -176,6 +176,10 @@ func TestDeepSeekHarnessProfileUsesCurrentKeyGroupPolicy(t *testing.T) {
 	require.Equal(t, "gpt-5.6-sol", result.Profile.SelectedModel)
 	require.Equal(t, "****alue", result.Profile.KeyHint)
 	require.Equal(t, ">=22.19.0", result.RequiredNode)
+	require.Equal(t, taskProtocolVersion, result.ProtocolVersion)
+	require.Equal(t, deepSeekHarnessToolID, result.ToolID)
+	require.Equal(t, pinnedDSHVersion, result.ToolVersion)
+	require.Equal(t, minimumHelperVersion, result.MinimumHelperVersion)
 	require.Equal(t, pinnedDSHVersion, result.DSHVersion)
 }
 
@@ -197,6 +201,11 @@ func TestDeepSeekHarnessCreateAndConsumeTicketOnce(t *testing.T) {
 	task, err := service.Exchange(context.Background(), ExchangeRequest{Ticket: ticket})
 	require.NoError(t, err)
 	require.Equal(t, "sk-test-secret-value", task.APIKey)
+	require.Equal(t, taskProtocolVersion, task.ProtocolVersion)
+	require.Equal(t, deepSeekHarnessToolID, task.ToolID)
+	require.Equal(t, pinnedDSHVersion, task.ToolVersion)
+	require.Equal(t, minimumHelperVersion, task.MinimumHelperVersion)
+	require.Equal(t, pinnedDSHVersion, task.DSHVersion)
 	require.Equal(t, "SUB2API_API_KEY", task.Provider.CredentialName)
 	require.Equal(t, "gpt-5.6-sol", task.Provider.Model.ID)
 	require.Contains(t, task.StatusURL, created.ID)

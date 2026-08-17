@@ -7,6 +7,9 @@ const (
 	defaultSessionTTL     = time.Hour
 	sessionRetentionGrace = 5 * time.Minute
 	pinnedDSHVersion      = "0.1.0-rc.6"
+	taskProtocolVersion   = "1"
+	deepSeekHarnessToolID = "deepseek-harness"
+	minimumHelperVersion  = "0.1.0"
 
 	statusAwaitingHelper    = "awaiting_helper"
 	statusCheckingEnv       = "checking_environment"
@@ -53,10 +56,14 @@ type HelperDownloads struct {
 }
 
 type ProfileResponse struct {
-	Profile         InstallProfile  `json:"profile"`
-	HelperDownloads HelperDownloads `json:"helper_downloads"`
-	RequiredNode    string          `json:"required_node"`
-	DSHVersion      string          `json:"dsh_version"`
+	Profile              InstallProfile  `json:"profile"`
+	HelperDownloads      HelperDownloads `json:"helper_downloads"`
+	RequiredNode         string          `json:"required_node"`
+	ProtocolVersion      string          `json:"protocol_version"`
+	ToolID               string          `json:"tool_id"`
+	ToolVersion          string          `json:"tool_version"`
+	MinimumHelperVersion string          `json:"minimum_helper_version"`
+	DSHVersion           string          `json:"dsh_version"`
 }
 
 type InstallSession struct {
@@ -150,10 +157,14 @@ type ProviderTask struct {
 }
 
 type BootstrapTask struct {
-	OperationID string       `json:"operation_id"`
-	EventToken  string       `json:"event_token"`
-	StatusURL   string       `json:"status_url"`
-	DSHVersion  string       `json:"dsh_version"`
-	APIKey      string       `json:"api_key"`
-	Provider    ProviderTask `json:"provider"`
+	OperationID          string       `json:"operation_id"`
+	EventToken           string       `json:"event_token"`
+	StatusURL            string       `json:"status_url"`
+	ProtocolVersion      string       `json:"protocol_version"`
+	ToolID               string       `json:"tool_id"`
+	ToolVersion          string       `json:"tool_version"`
+	MinimumHelperVersion string       `json:"minimum_helper_version"`
+	DSHVersion           string       `json:"dsh_version"`
+	APIKey               string       `json:"api_key"`
+	Provider             ProviderTask `json:"provider"`
 }

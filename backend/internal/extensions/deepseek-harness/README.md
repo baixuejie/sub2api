@@ -40,6 +40,21 @@ POST /api/v1/deepseek-harness/sessions/:id/events       Bearer event token
 
 所有接口都会在请求时读取 Feature Flag。关闭开关后，现有会话的查询、兑换和事件上报也会立即停止。
 
+## 通用 Helper 契约
+
+当前 DSH 接口继续保留原路径和 `dsh_version`，同时在 profile 和 exchange 任务中返回：
+
+```json
+{
+  "protocol_version": "1",
+  "tool_id": "deepseek-harness",
+  "tool_version": "0.1.0-rc.6",
+  "minimum_helper_version": "0.1.0"
+}
+```
+
+Helper 通过 `tool_id` 分派二进制内注册的白名单 adapter。后续 Hermes、OpenClaw 等工具应新增独立 Extension 和 adapter，或复用已发布 Helper 的受控能力；服务端不能下发任意安装脚本、可执行文件或命令参数。只有现有 Helper 已具备所需能力时，新工具才可以免升级接入；新增底层能力时必须提高 `minimum_helper_version`。
+
 ## 模型策略
 
 - OpenAI: `openai-responses`, 默认 `gpt-5.6-sol`

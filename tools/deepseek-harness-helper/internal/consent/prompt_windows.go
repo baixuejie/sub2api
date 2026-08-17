@@ -17,7 +17,7 @@ func ConfirmServer(_ context.Context, origin string) (bool, error) {
 		return false, err
 	}
 	message, err := syscall.UTF16PtrFromString(
-		"A Sub2API site is requesting permission to install and configure DeepSeek Harness on this computer.\r\n\r\n" +
+		"A Sub2API site is requesting permission to run a local tool setup task on this computer.\r\n\r\n" +
 			origin + "\r\n\r\nOnly choose Yes if you recognize and trust this exact site.",
 	)
 	if err != nil {

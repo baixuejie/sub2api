@@ -44,6 +44,10 @@ export interface HarnessProfileResponse {
   profile: HarnessInstallProfile
   helper_downloads: HarnessHelperDownloads
   required_node: string
+  protocol_version: string
+  tool_id: string
+  tool_version: string
+  minimum_helper_version: string
   dsh_version: string
 }
 

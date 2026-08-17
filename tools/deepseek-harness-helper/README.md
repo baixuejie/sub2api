@@ -1,28 +1,28 @@
-# DeepSeek Harness Helper
+# Sub2API Local Tools Helper
 
-独立的跨平台 Go Helper，用于处理 Sub2API 发起的 `sub2api-harness://bootstrap` 安装请求。Helper 不安装 Node.js；本机必须预先安装 Node.js `>= 22.19.0` 和 npm。
+独立的跨平台 Go Helper，用于处理 Sub2API 发起的 `sub2api-harness://bootstrap` 本地工具任务。源码目录、二进制名、协议名和已有配置目录暂时保留 `deepseek-harness` 历史名称以兼容旧版本；任务执行核心已按白名单 adapter 支持多工具扩展。当前 DSH adapter 不安装 Node.js，本机必须预先安装 Node.js `>= 22.19.0` 和 npm。
 
 ## 行为
 
 1. 严格解析：
 
    ```text
-   sub2api-harness://bootstrap?server=<origin>&ticket=<opaque>&operation_id=<opaque>
+   sub2api-harness://bootstrap?server=<origin>&ticket=<opaque>&operation_id=<opaque>[&extension_id=<id>]
    ```
 
-   `server` 只接受 HTTPS，或 `localhost` / loopback IP 的 HTTP origin。禁止 userinfo、额外路径、query 和 fragment。
+   `server` 只接受 HTTPS，或 `localhost` / loopback IP 的 HTTP origin。禁止 userinfo、额外路径、query 和 fragment。`extension_id` 只允许小写字母、数字和短横线，省略时兼容使用 `deepseek-harness`。
 
 2. 在访问服务器前显示系统原生确认框，明确展示规范化后的 origin。用户批准后写入私有 `trusted-sites.json`；同一 origin 后续不重复询问，其他站点必须单独批准。
-3. `POST <server>/api/v1/deepseek-harness/exchange`，body 为 `{"ticket":"..."}`，读取标准 `{"data": ...}` envelope。
+3. `POST <server>/api/v1/<extension_id>/exchange`，body 为 `{"ticket":"..."}`，读取标准 `{"data": ...}` envelope；状态地址也必须精确匹配同一 Extension 和 `operation_id`。
 4. 使用 exchange 返回的 `status_url` 和 `Bearer <event_token>` 依次上报：
    `checking_environment`、`installing`、`configuring`、`starting`、`completed`；失败上报 `failed`。
 5. 在 Helper 私有用户数据目录执行固定版本安装：
 
    ```text
-   npm install --prefix <runtime> --no-audit --no-fund --save-exact @deepseek-ai/dsh@<dsh_version>
+   npm install --prefix <runtime> --no-audit --no-fund --save-exact @deepseek-ai/dsh@<tool_version>
    ```
 
-   不通过 shell 执行，`dsh_version` 只接受固定版本 `0.1.0-rc.6`。
+   不通过 shell 执行。当前 `deepseek-harness` adapter 的 `tool_version` 只接受固定版本 `0.1.0-rc.6`；旧任务的 `dsh_version` 会兼容映射到该字段。
 6. 在私有 `DSH_HOME` 串行更新：
    - `settings.yaml`: 仅清理 Helper 明确定义的六个受管 route 及 legacy `sub2api`，保留其他同前缀用户 provider，再写入当前 `llm-pi-ai.providers[route]` 和 `agent-default-model`
    - `.credentials.yaml`: 固定写入 `SUB2API_API_KEY: api_key`；启动 DSH 时移除父进程中同名环境变量，避免环境优先级覆盖本次当前 Key
@@ -36,6 +36,23 @@
    ```
 
    DSH 的 stdout/stderr 直接追加到私有日志文件，Helper 只从本次启动后的新增日志中解析完整匹配 `dsh web: http://127.0.0.1:<port>` 的行，避免 Helper 退出后子进程失去 pipe 读端。因为凭据引用固定为 `SUB2API_API_KEY`，写入新 endpoint 和新 key 前会先停止状态文件中可验证的 Helper-managed DSH，避免热加载产生“新 endpoint + 旧 key”的组合；状态文件损坏、runtime 不匹配，或 PID 的进程创建时间/可执行文件身份不匹配时直接中止，避免 PID 复用误杀其他进程。两个文件完成后再启动，并同时验证进程身份与包含 Harness 标识的 loopback HTTP。终态事件可严格幂等重试；本地 Harness 已成功启动后，无论状态响应明确失败还是网络/5xx 重试后仍无法确认，Helper 都保留配置与进程并输出警告。
+
+## 通用工具任务协议
+
+新版 exchange 任务使用以下通用字段：
+
+- `protocol_version`: 当前仅支持 `1`
+- `tool_id`: 工具白名单标识，当前仅注册 `deepseek-harness`
+- `tool_version`: adapter 明确支持的工具版本
+- `minimum_helper_version`: 执行任务所需的最低 Helper SemVer
+
+四个字段必须同时存在。正式构建使用编译时注入的 Helper 版本进行 SemVer 比较；本地 `dev` 构建按代码声明的兼容版本 `0.1.0` 比较，不会被视为无限新版本。仅包含 `dsh_version`、未包含上述四个字段的旧任务仍按协议 `1`、工具 `deepseek-harness` 兼容执行；新旧版本字段同时存在时必须一致。
+
+任务只能通过 `tool_id` 选择 Helper 二进制内显式注册的 adapter，服务端不能下发 executable、命令参数或 shell 脚本。未知工具、未知协议、不支持的工具版本、无效版本号，以及高于当前 Helper 的 `minimum_helper_version` 都会在执行任何工具动作前被拒绝。
+
+后续接入 Hermes、OpenClaw 等工具时，应新增独立 adapter，或复用 Helper 已发布版本中已有的受控安装能力。只增加后端工具定义且现有 Helper 已具备所需能力时，用户无需更新；需要新增 adapter、底层安装能力或安全修复时，必须提高 `minimum_helper_version` 并发布新版 Helper。不得为了免升级而把官方安装脚本或任意命令直接从服务端下发执行。
+
+启动 URI 可选的 `extension_id` 决定同源后端 Extension 路径，例如 `hermes` 会使用 `/api/v1/hermes/exchange` 和 `/api/v1/hermes/sessions/<operation_id>/events`。Helper 对标识和最终 URL 再次做严格校验，因此新增后端 Extension 不需要修改网络分派主流程。
 
 ## 数据目录
 
@@ -123,6 +140,7 @@ deepseek-harness-helper --version
 - Node 缺失、npm 缺失或 Node 低于 `22.19.0` 时立即失败并上报，不自动安装或升级 Node。
 - 未经本机用户确认的 origin 不会收到任何网络请求。确认框显示精确 origin；只应批准自己信任的 Sub2API 站点。
 - Exchange 不携带长期认证；ticket 应由服务端保持短时、单次使用。API key 只写入私有 credentials 文件，不进入命令参数或 Helper 日志。
+- Exchange 任务只能选择 Helper 内置白名单 adapter；任务协议不接受任意命令、参数数组或脚本，不能把服务端数据解释为 shell。
 - 固定凭据槽意味着当前 DSH_HOME 只保留一个 Sub2API-managed provider；再次从其他 Key/分组安装会替换上一次的 `sub2api-*` provider 和默认模型。
 - `status_url` 必须与 exchange server 同 origin，且 path 必须精确对应 `operation_id`，防止 event token 被转发到其他主机。
 - Provider `base_url` 要求 HTTPS；仅本机开发允许 loopback HTTP。

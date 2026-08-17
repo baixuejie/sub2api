@@ -9,7 +9,10 @@ export function safeLaunchURI(raw: string | undefined): string {
     const server = parsed.searchParams.get('server') || ''
     const ticket = parsed.searchParams.get('ticket') || ''
     const operationId = parsed.searchParams.get('operation_id') || ''
+    const extensionId = parsed.searchParams.get('extension_id') || 'deepseek-harness'
     const queryKeys = Array.from(parsed.searchParams.keys())
+    const countKey = (key: string) => queryKeys.filter((candidate) => candidate === key).length
+    const extensionCount = countKey('extension_id')
     if (
       parsed.protocol !== 'sub2api-harness:' ||
       parsed.hostname !== 'bootstrap' ||
@@ -18,10 +21,15 @@ export function safeLaunchURI(raw: string | undefined): string {
       parsed.username ||
       parsed.password ||
       parsed.hash ||
-      queryKeys.length !== 3 ||
-      queryKeys.some((key) => !['server', 'ticket', 'operation_id'].includes(key)) ||
+      countKey('server') !== 1 ||
+      countKey('ticket') !== 1 ||
+      countKey('operation_id') !== 1 ||
+      extensionCount > 1 ||
+      queryKeys.length !== 3 + extensionCount ||
+      queryKeys.some((key) => !['server', 'ticket', 'operation_id', 'extension_id'].includes(key)) ||
       !opaqueTokenPattern.test(ticket) ||
       !opaqueTokenPattern.test(operationId) ||
+      !/^[a-z0-9-]{1,64}$/.test(extensionId) ||
       !safeServerURL(server)
     ) {
       return ''

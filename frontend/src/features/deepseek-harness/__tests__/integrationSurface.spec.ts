@@ -11,19 +11,26 @@ const read = (path: string) => readFileSync(resolve(here, path), 'utf8')
 describe('DeepSeek Harness extension integration surface', () => {
   it('keeps the API key view limited to mounting the feature action', () => {
     const keysView = read('../../../views/user/KeysView.vue')
-    const ccsPosition = keysView.indexOf('importToCcswitch(row)')
-    const harnessPosition = keysView.indexOf('<DeepSeekHarnessAction')
+    const localToolsPosition = keysView.indexOf('<LocalToolsAction')
     const togglePosition = keysView.indexOf('toggleKeyStatus(row)')
 
     expect(keysView).toContain(
-      "import DeepSeekHarnessAction from '@/features/deepseek-harness/components/DeepSeekHarnessAction.vue'"
+      "import LocalToolsAction from '@/features/local-tools/components/LocalToolsAction.vue'"
     )
-    expect(keysView).toContain('v-if="deepSeekHarnessEnabled"')
+    expect(keysView).toContain('v-if="!publicSettings?.hide_ccs_import_button || deepSeekHarnessEnabled"')
+    expect(keysView).toContain(':api-key="row"')
+    expect(keysView).toContain(':public-settings="publicSettings"')
+    expect(keysView).not.toContain('importToCcswitch')
+    expect(keysView).not.toContain('buildCcSwitchImportDeeplink')
     expect(keysView).toContain('resolveFeatureFlag(FeatureFlags.deepSeekHarness, publicSettings.value)')
     expect(keysView).toContain('class="flex flex-wrap items-center gap-1"')
-    expect(ccsPosition).toBeGreaterThan(-1)
-    expect(harnessPosition).toBeGreaterThan(ccsPosition)
-    expect(togglePosition).toBeGreaterThan(harnessPosition)
+    expect(localToolsPosition).toBeGreaterThan(-1)
+    expect(togglePosition).toBeGreaterThan(localToolsPosition)
+
+    const localTools = read('../../local-tools/components/LocalToolsAction.vue')
+    expect(localTools).toContain("import DeepSeekHarnessAction from '@/features/deepseek-harness/components/DeepSeekHarnessAction.vue'")
+    expect(localTools).toContain('buildCcSwitchImportDeeplink')
+    expect(localTools).toContain('showCcsClientSelect')
   })
 
   it('registers the public setting as a fail-closed opt-in feature flag', () => {

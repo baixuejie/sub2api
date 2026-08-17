@@ -13,6 +13,7 @@ type LaunchRequest struct {
 	Server      string
 	Ticket      string
 	OperationID string
+	ExtensionID string
 }
 
 type ExchangeRequest struct {
@@ -40,14 +41,25 @@ type Provider struct {
 }
 
 type Task struct {
-	ServerOrigin string   `json:"-"`
-	OperationID  string   `json:"operation_id"`
-	EventToken   string   `json:"event_token"`
-	StatusURL    string   `json:"status_url"`
-	DSHVersion   string   `json:"dsh_version"`
-	APIKey       string   `json:"api_key"`
-	Provider     Provider `json:"provider"`
+	ServerOrigin         string   `json:"-"`
+	ExtensionID          string   `json:"-"`
+	OperationID          string   `json:"operation_id"`
+	EventToken           string   `json:"event_token"`
+	StatusURL            string   `json:"status_url"`
+	ProtocolVersion      string   `json:"protocol_version"`
+	ToolID               string   `json:"tool_id"`
+	ToolVersion          string   `json:"tool_version"`
+	MinimumHelperVersion string   `json:"minimum_helper_version"`
+	DSHVersion           string   `json:"dsh_version,omitempty"`
+	APIKey               string   `json:"api_key"`
+	Provider             Provider `json:"provider"`
 }
+
+const (
+	CurrentTaskProtocolVersion = "1"
+	DeepSeekHarnessToolID      = "deepseek-harness"
+	DevelopmentHelperVersion   = "0.1.0"
+)
 
 type StatusEvent struct {
 	Status     string `json:"status"`

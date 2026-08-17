@@ -1,14 +1,16 @@
 <template>
-  <button
-    type="button"
-    :disabled="disabled"
-    :title="disabled ? copy.unavailableKey : copy.action"
-    class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-cyan-50 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-cyan-900/20 dark:hover:text-cyan-300"
-    @click="openDialog"
-  >
-    <Icon name="download" size="sm" />
-    <span class="text-xs">{{ copy.action }}</span>
-  </button>
+  <slot name="trigger" :open="openDialog" :disabled="disabled">
+    <button
+      type="button"
+      :disabled="disabled"
+      :title="disabled ? copy.unavailableKey : copy.action"
+      class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-cyan-50 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-cyan-900/20 dark:hover:text-cyan-300"
+      @click="openDialog"
+    >
+      <Icon name="download" size="sm" />
+      <span class="text-xs">{{ copy.action }}</span>
+    </button>
+  </slot>
 
   <BaseDialog
     :show="showDialog"
@@ -64,6 +66,7 @@
           <div class="mb-2 font-medium text-gray-700 dark:text-dark-200">{{ copy.environment }}</div>
           <div class="flex flex-wrap gap-x-6 gap-y-2 text-xs text-gray-500 dark:text-dark-400">
             <span>{{ copy.nodeRequirement }} {{ profileResponse.required_node }}</span>
+            <span>{{ copy.helperVersion }} &gt;= {{ profileResponse.minimum_helper_version }}</span>
             <span>{{ copy.harnessVersion }} {{ profileResponse.dsh_version }}</span>
           </div>
         </div>
@@ -145,6 +148,26 @@
             <p v-if="session.error_code" class="mt-1 font-mono text-xs text-gray-500 dark:text-dark-400">
               {{ session.error_code }}
             </p>
+            <a
+              v-if="helperUpdateRequired && helperDownloadURL"
+              :href="helperDownloadURL"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn btn-secondary btn-sm mt-3 inline-flex"
+            >
+              <Icon name="download" size="sm" />
+              {{ copy.updateHelper }}
+            </a>
+            <a
+              v-else-if="helperUpdateRequired && safeReleasesPageURL"
+              :href="safeReleasesPageURL"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn btn-secondary btn-sm mt-3 inline-flex"
+            >
+              <Icon name="download" size="sm" />
+              {{ copy.updateHelper }}
+            </a>
           </div>
         </div>
 
@@ -245,6 +268,7 @@ const safeReleasesPageURL = computed(() =>
   safeDownloadURL(profileResponse.value?.helper_downloads.releases_page)
 )
 const safeRunningHarnessURL = computed(() => safeHarnessURL(session.value?.harness_url))
+const helperUpdateRequired = computed(() => session.value?.error_code === 'helper_update_required')
 let profileController: AbortController | null = null
 let createController: AbortController | null = null
 let pollController: AbortController | null = null
@@ -500,6 +524,8 @@ function isAbortError(error: unknown): boolean {
         (error as { name?: string }).name === 'AbortError')
   )
 }
+
+defineExpose({ openDialog })
 
 onUnmounted(clearTimers)
 </script>

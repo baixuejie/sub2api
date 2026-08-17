@@ -61,10 +61,14 @@ func (s *installService) Profile(ctx context.Context, userID, apiKeyID int64, fa
 		return ProfileResponse{}, err
 	}
 	return ProfileResponse{
-		Profile:         profile,
-		HelperDownloads: helperDownloads(),
-		RequiredNode:    ">=22.19.0",
-		DSHVersion:      pinnedDSHVersion,
+		Profile:              profile,
+		HelperDownloads:      helperDownloads(),
+		RequiredNode:         ">=22.19.0",
+		ProtocolVersion:      taskProtocolVersion,
+		ToolID:               deepSeekHarnessToolID,
+		ToolVersion:          pinnedDSHVersion,
+		MinimumHelperVersion: minimumHelperVersion,
+		DSHVersion:           pinnedDSHVersion,
 	}, nil
 }
 
@@ -206,11 +210,15 @@ func (s *installService) Exchange(ctx context.Context, request ExchangeRequest) 
 	}
 	statusURL := strings.TrimRight(profile.ServerURL, "/") + "/api/v1/deepseek-harness/sessions/" + session.ID + "/events"
 	task := BootstrapTask{
-		OperationID: session.ID,
-		EventToken:  ticket.EventToken,
-		StatusURL:   statusURL,
-		DSHVersion:  pinnedDSHVersion,
-		APIKey:      key.Key,
+		OperationID:          session.ID,
+		EventToken:           ticket.EventToken,
+		StatusURL:            statusURL,
+		ProtocolVersion:      taskProtocolVersion,
+		ToolID:               deepSeekHarnessToolID,
+		ToolVersion:          pinnedDSHVersion,
+		MinimumHelperVersion: minimumHelperVersion,
+		DSHVersion:           pinnedDSHVersion,
+		APIKey:               key.Key,
 		Provider: ProviderTask{
 			Route:          profile.Provider,
 			DisplayName:    profile.ProviderName,

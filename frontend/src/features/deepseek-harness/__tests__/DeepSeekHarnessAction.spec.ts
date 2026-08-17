@@ -44,6 +44,10 @@ const profile: HarnessProfileResponse = {
     releases_page: 'https://example.com/releases'
   },
   required_node: '>=22.19.0',
+  protocol_version: '1',
+  tool_id: 'deepseek-harness',
+  tool_version: '0.1.0-rc.6',
+  minimum_helper_version: '0.1.0',
   dsh_version: '0.1.0-rc.6'
 }
 

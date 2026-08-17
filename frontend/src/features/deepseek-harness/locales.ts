@@ -9,6 +9,7 @@ export interface DeepSeekHarnessCopy {
   model: string
   environment: string
   nodeRequirement: string
+  helperVersion: string
   harnessVersion: string
   installAndStart: string
   cancel: string
@@ -16,6 +17,7 @@ export interface DeepSeekHarnessCopy {
   retry: string
   relaunch: string
   installHelper: string
+  updateHelper: string
   helperMissing: string
   helperMissingDetail: string
   openHarness: string
@@ -38,6 +40,7 @@ export const deepSeekHarnessCopy: Record<'zh' | 'en', DeepSeekHarnessCopy> = {
     model: '默认模型',
     environment: '本机环境',
     nodeRequirement: 'Node.js',
+    helperVersion: 'Helper',
     harnessVersion: 'Harness',
     installAndStart: '安装并启动',
     cancel: '取消',
@@ -45,6 +48,7 @@ export const deepSeekHarnessCopy: Record<'zh' | 'en', DeepSeekHarnessCopy> = {
     retry: '重试',
     relaunch: '重新唤起 Helper',
     installHelper: '安装本地 Helper',
+    updateHelper: '更新本地 Helper',
     helperMissing: '未检测到本地 Helper',
     helperMissingDetail: '首次使用需要安装一次 Helper，安装后重新唤起即可。',
     openHarness: '打开 Harness',
@@ -74,6 +78,7 @@ export const deepSeekHarnessCopy: Record<'zh' | 'en', DeepSeekHarnessCopy> = {
     model: 'Default model',
     environment: 'Local environment',
     nodeRequirement: 'Node.js',
+    helperVersion: 'Helper',
     harnessVersion: 'Harness',
     installAndStart: 'Install and start',
     cancel: 'Cancel',
@@ -81,6 +86,7 @@ export const deepSeekHarnessCopy: Record<'zh' | 'en', DeepSeekHarnessCopy> = {
     retry: 'Retry',
     relaunch: 'Launch Helper again',
     installHelper: 'Install local Helper',
+    updateHelper: 'Update local Helper',
     helperMissing: 'Local Helper was not detected',
     helperMissingDetail: 'The first use requires one Helper installation. Launch it again after installation.',
     openHarness: 'Open Harness',

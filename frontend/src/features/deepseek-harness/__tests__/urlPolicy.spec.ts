@@ -21,6 +21,7 @@ describe('DeepSeek Harness URL policy', () => {
   it('accepts only the exact bootstrap protocol shape', () => {
     const valid = 'sub2api-harness://bootstrap?server=https%3A%2F%2Fapi.example.com&ticket=abc_123&operation_id=session-1'
     expect(safeLaunchURI(valid)).toContain('sub2api-harness://bootstrap')
+    expect(safeLaunchURI(`${valid}&extension_id=hermes`)).toContain('extension_id=hermes')
 
     for (const unsafe of [
       'javascript:alert(1)',
@@ -29,6 +30,8 @@ describe('DeepSeek Harness URL policy', () => {
       'sub2api-harness://bootstrap?server=http%3A%2F%2Fevil.example.com&ticket=abc&operation_id=one',
       'sub2api-harness://bootstrap?server=https%3A%2F%2Fapi.example.com&ticket=a%2Fb&operation_id=one',
       'sub2api-harness://bootstrap?server=https%3A%2F%2Fapi.example.com&ticket=abc&operation_id=one&extra=value',
+      'sub2api-harness://bootstrap?server=https%3A%2F%2Fapi.example.com&server=https%3A%2F%2Fevil.example.com&ticket=abc&operation_id=one',
+      'sub2api-harness://bootstrap?server=https%3A%2F%2Fapi.example.com&ticket=abc&operation_id=one&extension_id=Hermes%2Fshell',
       'sub2api-harness://bootstrap?server=https%3A%2F%2Fapi.example.com%2Fv1&ticket=abc&operation_id=one'
     ]) {
       expect(safeLaunchURI(unsafe)).toBe('')

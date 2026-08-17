@@ -44,10 +44,13 @@ func run(args []string) error {
 	defer cancel()
 	ctx, timeout := context.WithTimeout(ctx, 10*time.Minute)
 	defer timeout()
-	workflow := bootstrap.Workflow{Client: bootstrap.NewClient(), Paths: paths, Output: os.Stdout, WarningOutput: os.Stderr}
+	workflow := bootstrap.Workflow{Client: bootstrap.NewClient(), Paths: paths, Output: os.Stdout, WarningOutput: os.Stderr, HelperVersion: version}
 	harnessURL, err := workflow.Run(ctx, args[0])
 	if err != nil {
 		return err
+	}
+	if harnessURL == "" {
+		return nil
 	}
 	return openBrowser(harnessURL)
 }
@@ -65,7 +68,7 @@ func installHelper() error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("DeepSeek Harness Helper installed:", installedPath)
+	fmt.Println("Sub2API Local Tools Helper installed:", installedPath)
 	return nil
 }
 

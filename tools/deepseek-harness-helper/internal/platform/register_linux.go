@@ -30,7 +30,7 @@ func registerProtocol(reg Registration) error {
 	if err := os.MkdirAll(applications, 0o700); err != nil {
 		return err
 	}
-	desktop := "[Desktop Entry]\nType=Application\nName=Sub2API DeepSeek Harness Helper\nNoDisplay=true\nTerminal=false\nExec=" + desktopQuote(executable) + " %u\nMimeType=x-scheme-handler/sub2api-harness;\n"
+	desktop := "[Desktop Entry]\nType=Application\nName=Sub2API Local Tools Helper\nNoDisplay=true\nTerminal=false\nExec=" + desktopQuote(executable) + " %u\nMimeType=x-scheme-handler/sub2api-harness;\n"
 	filename := filepath.Join(applications, "deepseek-harness-helper.desktop")
 	if err := os.WriteFile(filename, []byte(desktop), 0o600); err != nil {
 		return err

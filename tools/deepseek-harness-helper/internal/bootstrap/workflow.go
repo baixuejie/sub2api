@@ -9,7 +9,6 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/tools/deepseek-harness-helper/internal/config"
 	"github.com/Wei-Shaw/sub2api/tools/deepseek-harness-helper/internal/consent"
-	"github.com/Wei-Shaw/sub2api/tools/deepseek-harness-helper/internal/dsh"
 	"github.com/Wei-Shaw/sub2api/tools/deepseek-harness-helper/internal/runner"
 )
 
@@ -20,6 +19,8 @@ type Workflow struct {
 	Output        io.Writer
 	WarningOutput io.Writer
 	ConfirmTrust  consent.Prompt
+	Registry      *AdapterRegistry
+	HelperVersion string
 }
 
 func (w *Workflow) Run(ctx context.Context, rawURI string) (string, error) {
@@ -44,6 +45,26 @@ func (w *Workflow) Run(ctx context.Context, rawURI string) (string, error) {
 	if task.OperationID != launch.OperationID {
 		return "", errors.New("exchange operation_id mismatch")
 	}
+	registry := w.Registry
+	if registry == nil {
+		registry = DefaultAdapterRegistry()
+	}
+	adapter, normalizedTask, err := registry.Resolve(task, w.HelperVersion)
+	if err != nil {
+		code := "unsupported_tool_contract"
+		var upgradeRequired *HelperUpgradeRequiredError
+		if errors.As(err, &upgradeRequired) {
+			code = "helper_update_required"
+		}
+		event := StatusEvent{
+			Status: StatusFailed, Stage: StatusFailed, Message: publicFailure(err), Progress: 100, ErrorCode: code,
+		}
+		if reportErr := client.Report(ctx, task, event); reportErr != nil {
+			return "", fmt.Errorf("%w; additionally failed to report status: %v", err, reportErr)
+		}
+		return "", err
+	}
+	task = normalizedTask
 	var reportWarnings []error
 	report := func(event StatusEvent) error {
 		err := client.Report(ctx, task, event)
@@ -60,76 +81,34 @@ func (w *Workflow) Run(ctx context.Context, rawURI string) (string, error) {
 		}
 		return "", cause
 	}
-	if err := report(StatusEvent{Status: StatusCheckingEnvironment, Stage: StatusCheckingEnvironment, Message: "Checking Node.js and npm", Progress: 10}); err != nil {
-		return "", err
-	}
 	run := w.Runner
 	if run == nil {
 		run = runner.ExecRunner{}
 	}
-	environment, err := dsh.CheckEnvironment(ctx, run)
-	if err != nil {
-		return fail("environment_check_failed", err)
-	}
-	if err := report(StatusEvent{Status: StatusInstalling, Stage: StatusInstalling, Message: "Installing the pinned DeepSeek Harness version", Progress: 30}); err != nil {
-		return "", err
-	}
-	var dshBin, harnessURL string
-	reportFailed := false
-	localErr := config.WithBootstrapLock(w.Paths, func() error {
-		dshBin, err = dsh.Install(ctx, run, environment, w.Paths, task.DSHVersion)
-		if err != nil {
-			return &workflowStageError{code: "dsh_install_failed", cause: err}
-		}
-		if err := report(StatusEvent{Status: StatusConfiguring, Stage: StatusConfiguring, Message: "Writing provider and credential configuration", Progress: 60}); err != nil {
-			reportFailed = true
-			return err
-		}
-		provider := config.ProviderConfig{
-			Route: task.Provider.Route, DisplayName: task.Provider.DisplayName, Protocol: task.Provider.Protocol,
-			BaseURL: task.Provider.BaseURL, CredentialName: task.Provider.CredentialName,
-			ModelID: task.Provider.Model.ID, ModelName: task.Provider.Model.Name,
-			ContextWindow: task.Provider.Model.ContextWindow, MaxTokens: task.Provider.Model.MaxTokens,
-		}
-		if err := report(StatusEvent{Status: StatusStarting, Stage: StatusStarting, Message: "Starting DeepSeek Harness", Progress: 80}); err != nil {
-			reportFailed = true
-			return err
-		}
-		if err := dsh.StopManaged(ctx, environment, w.Paths, dshBin, task.DSHVersion); err != nil {
-			return &workflowStageError{code: "dsh_stop_failed", cause: err}
-		}
-		if err := config.Apply(w.Paths, provider, task.APIKey); err != nil {
-			return &workflowStageError{code: "configuration_failed", cause: err}
-		}
-		started, err := dsh.StartOrReuse(ctx, environment, w.Paths, dshBin, task.DSHVersion, task.OperationID)
-		if err != nil {
-			return &workflowStageError{code: "dsh_start_failed", cause: err}
-		}
-		harnessURL = started.URL
-		if err := client.Report(ctx, task, StatusEvent{Status: StatusCompleted, Stage: StatusCompleted, Message: "DeepSeek Harness is ready", Progress: 100, HarnessURL: harnessURL}); err != nil {
-			reportWarnings = append(reportWarnings, err)
-		}
-		return nil
-	})
-	if localErr != nil {
-		if reportFailed {
-			return "", localErr
+	result, executionErr := adapter.Execute(ctx, AdapterExecution{Task: task, Runner: run, Paths: w.Paths, Report: report})
+	if executionErr != nil {
+		var reportErr *workflowReportError
+		if errors.As(executionErr, &reportErr) {
+			return "", reportErr.cause
 		}
 		var stageErr *workflowStageError
-		if errors.As(localErr, &stageErr) {
+		if errors.As(executionErr, &stageErr) {
 			return fail(stageErr.code, stageErr.cause)
 		}
-		return fail("bootstrap_lock_failed", localErr)
+		return fail("tool_execution_failed", executionErr)
+	}
+	if err := client.Report(ctx, task, StatusEvent{Status: StatusCompleted, Stage: StatusCompleted, Message: result.CompletionMessage, Progress: 100, HarnessURL: result.OpenURL}); err != nil {
+		reportWarnings = append(reportWarnings, err)
 	}
 	if w.WarningOutput != nil {
 		for _, warning := range reportWarnings {
 			_, _ = fmt.Fprintf(w.WarningOutput, "warning: status synchronization did not complete: %v\n", warning)
 		}
 	}
-	if w.Output != nil {
-		_, _ = fmt.Fprintln(w.Output, harnessURL)
+	if w.Output != nil && result.OpenURL != "" {
+		_, _ = fmt.Fprintln(w.Output, result.OpenURL)
 	}
-	return harnessURL, nil
+	return result.OpenURL, nil
 }
 
 type workflowStageError struct {

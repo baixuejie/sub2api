@@ -161,3 +161,12 @@ git config merge.renormalize true
 - `DEV_GUIDE.md` 中记录的 Fork 地址可能与当前 Git 远端配置不一致；以实际 `git remote -v` 为准，未经授权不要擅自改远端。
 - 当前项目使用 Go、Gin、Ent、Wire、Vue 和 pnpm；新增方案应优先遵循现有工具链。
 - 许可证、CLA、上游 AI 服务条款及项目对商业化的声明需要单独审阅，不能仅因项目公开托管就默认可以任意运营或分发。
+
+## 6. 本地工具与 Helper 扩展规范
+
+- API Key 页面上的本地工具统一由 `frontend/src/features/local-tools/` 提供下拉入口，核心页面只负责传入 Key 状态、Feature Flag 和必要事件。
+- CC Switch 继续使用其官方 `ccswitch://` 协议，不经过 Sub2API Helper。
+- 需要本机安装、配置或启动的工具统一复用 Sub2API Helper 任务协议。任务必须包含 `protocol_version`、`tool_id`、`tool_version` 和 `minimum_helper_version`，并保留已有协议所需的兼容字段；新增后端模块通过受限 `extension_id` 使用自己的同源兑换与状态接口。
+- Helper 只能按 `tool_id` 调用二进制内显式注册的白名单 adapter，不得执行后端下发的任意 Shell、PowerShell、可执行文件路径或参数数组。
+- 新增 Hermes、OpenClaw 等工具时，优先复用已发布 Helper 的受控能力；确需新增 adapter、底层安装能力或安全修复时，必须提高 `minimum_helper_version` 并发布新版 Helper。
+- 新工具的 UI、后端任务定义和 Helper adapter 分别保持独立命名空间，禁止把工具专用安装逻辑重新写回 API Key 核心页面或通用任务分派器。

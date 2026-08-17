@@ -7,7 +7,7 @@
   <key>CFBundleIdentifier</key>
   <string>com.sub2api.deepseek-harness-helper</string>
   <key>CFBundleName</key>
-  <string>DeepSeek Harness Helper</string>
+  <string>Sub2API Local Tools Helper</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
@@ -18,7 +18,7 @@
   <array>
     <dict>
       <key>CFBundleURLName</key>
-      <string>Sub2API Harness Bootstrap</string>
+      <string>Sub2API Local Tools Bootstrap</string>
       <key>CFBundleURLSchemes</key>
       <array><string>sub2api-harness</string></array>
     </dict>

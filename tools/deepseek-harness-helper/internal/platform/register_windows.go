@@ -19,7 +19,7 @@ func registerProtocol(reg Registration) error {
 	if err != nil {
 		return err
 	}
-	if err := key.SetStringValue("", "URL:Sub2API DeepSeek Harness Bootstrap"); err != nil {
+	if err := key.SetStringValue("", "URL:Sub2API Local Tools Bootstrap"); err != nil {
 		key.Close()
 		return err
 	}
