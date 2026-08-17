@@ -42,7 +42,12 @@ func TestInstallUsesFixedArguments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"npm", "install", "--prefix", paths.InstallDir, "--no-audit", "--no-fund", "--save-exact", "@deepseek-ai/dsh@0.1.0-rc.6"}
+	want := []string{
+		"npm", "install", "--prefix", paths.InstallDir,
+		"--registry", "https://registry.npmmirror.com",
+		"--replace-registry-host", "always",
+		"--no-audit", "--no-fund", "--save-exact", "@deepseek-ai/dsh@0.1.0-rc.6",
+	}
 	if !reflect.DeepEqual(run.calls[0], want) {
 		t.Fatalf("npm argv = %#v, want %#v", run.calls[0], want)
 	}

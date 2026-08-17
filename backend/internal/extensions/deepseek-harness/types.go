@@ -9,7 +9,7 @@ const (
 	pinnedDSHVersion      = "0.1.0-rc.6"
 	taskProtocolVersion   = "1"
 	deepSeekHarnessToolID = "deepseek-harness"
-	minimumHelperVersion  = "0.1.3"
+	minimumHelperVersion  = "0.1.4"
 
 	statusAwaitingHelper    = "awaiting_helper"
 	statusCheckingEnv       = "checking_environment"

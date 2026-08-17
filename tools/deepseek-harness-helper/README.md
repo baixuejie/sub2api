@@ -19,7 +19,7 @@
 5. 在 Helper 私有用户数据目录执行固定版本安装：
 
    ```text
-   npm install --prefix <runtime> --no-audit --no-fund --save-exact @deepseek-ai/dsh@<tool_version>
+   npm install --prefix <runtime> --registry https://registry.npmmirror.com --replace-registry-host always --no-audit --no-fund --save-exact @deepseek-ai/dsh@<tool_version>
    ```
 
    不通过 shell 执行。当前 `deepseek-harness` adapter 的 `tool_version` 只接受固定版本 `0.1.0-rc.6`；旧任务的 `dsh_version` 会兼容映射到该字段。

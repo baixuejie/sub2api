@@ -12,7 +12,10 @@ import (
 	"github.com/Wei-Shaw/sub2api/tools/deepseek-harness-helper/internal/runner"
 )
 
-const SupportedVersion = "0.1.0-rc.6"
+const (
+	SupportedVersion  = "0.1.0-rc.6"
+	npmRegistryMirror = "https://registry.npmmirror.com"
+)
 
 func Install(
 	ctx context.Context,
@@ -36,7 +39,12 @@ func Install(
 		return bin, nil
 	}
 	packageName := "@deepseek-ai/dsh@" + version
-	args := []string{"install", "--prefix", paths.InstallDir, "--no-audit", "--no-fund", "--save-exact", packageName}
+	args := []string{
+		"install", "--prefix", paths.InstallDir,
+		"--registry", npmRegistryMirror,
+		"--replace-registry-host", "always",
+		"--no-audit", "--no-fund", "--save-exact", packageName,
+	}
 	if _, err := run.Run(ctx, env.NPMPath, args, paths.InstallDir, stdout, stderr); err != nil {
 		return "", fmt.Errorf("npm install %s: %w", packageName, err)
 	}

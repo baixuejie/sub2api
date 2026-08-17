@@ -39,6 +39,12 @@ func TestChildEnvironmentRemovesManagedCredentialShadow(t *testing.T) {
 	}
 }
 
+func TestDSHStartupTimeoutAllowsSlowFirstLaunch(t *testing.T) {
+	if dshStartupTimeout < 2*time.Minute {
+		t.Fatalf("dshStartupTimeout = %s, want at least 2m", dshStartupTimeout)
+	}
+}
+
 func TestStopManagedRejectsMismatchedRuntimeWithoutKillingProcess(t *testing.T) {
 	t.Parallel()
 	paths := config.PathsFor(t.TempDir())
