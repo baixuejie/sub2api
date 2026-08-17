@@ -1,5 +1,7 @@
 package bootstrap
 
+import "encoding/json"
+
 const (
 	StatusCheckingEnvironment = "checking_environment"
 	StatusInstalling          = "installing"
@@ -41,18 +43,25 @@ type Provider struct {
 }
 
 type Task struct {
-	ServerOrigin         string   `json:"-"`
-	ExtensionID          string   `json:"-"`
-	OperationID          string   `json:"operation_id"`
-	EventToken           string   `json:"event_token"`
-	StatusURL            string   `json:"status_url"`
-	ProtocolVersion      string   `json:"protocol_version"`
-	ToolID               string   `json:"tool_id"`
-	ToolVersion          string   `json:"tool_version"`
-	MinimumHelperVersion string   `json:"minimum_helper_version"`
-	DSHVersion           string   `json:"dsh_version,omitempty"`
-	APIKey               string   `json:"api_key"`
-	Provider             Provider `json:"provider"`
+	ServerOrigin         string          `json:"-"`
+	ExtensionID          string          `json:"-"`
+	OperationID          string          `json:"operation_id"`
+	EventToken           string          `json:"event_token"`
+	StatusURL            string          `json:"status_url"`
+	ProtocolVersion      string          `json:"protocol_version"`
+	ToolID               string          `json:"tool_id"`
+	ToolVersion          string          `json:"tool_version"`
+	MinimumHelperVersion string          `json:"minimum_helper_version"`
+	Payload              json.RawMessage `json:"payload,omitempty"`
+	// Deprecated DSH compatibility fields. New adapters decode Payload instead.
+	DSHVersion string   `json:"dsh_version,omitempty"`
+	APIKey     string   `json:"api_key"`
+	Provider   Provider `json:"provider"`
+}
+
+type DeepSeekHarnessPayload struct {
+	APIKey   string   `json:"api_key"`
+	Provider Provider `json:"provider"`
 }
 
 const (

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
-	deepseekharness "github.com/Wei-Shaw/sub2api/internal/extensions/deepseek-harness"
 	imagegeneration "github.com/Wei-Shaw/sub2api/internal/extensions/image-generation"
+	localtools "github.com/Wei-Shaw/sub2api/internal/extensions/local-tools"
 	"github.com/Wei-Shaw/sub2api/internal/extensions/tutorials"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -131,7 +131,7 @@ func registerRoutes(
 	routes.RegisterAuthRoutes(v1, h, jwtAuth, auditLog, redisClient, settingService, panelRateLimiter)
 	routes.RegisterUserRoutes(v1, h, jwtAuth, auditLog, settingService, panelRateLimiter)
 	routes.RegisterModelPlazaRoutes(v1, h, optionalJWTAuth, settingService, panelRateLimiter)
-	deepseekharness.RegisterRoutes(v1, jwtAuth, auditLog, apiKeyService, settingService, redisClient, panelRateLimiter)
+	localtools.RegisterRoutes(v1, jwtAuth, auditLog, apiKeyService, settingService, redisClient, panelRateLimiter)
 	imagegeneration.RegisterRoutes(v1, h.ImageGeneration, jwtAuth, apiKeyAuth, settingService, panelRateLimiter)
 	tutorials.RegisterPublicRoutes(v1, setup.GetDataDir())
 	routes.RegisterAdminRoutes(v1, h, adminAuth, auditLog, stepUpAuth, settingService, panelRateLimiter)

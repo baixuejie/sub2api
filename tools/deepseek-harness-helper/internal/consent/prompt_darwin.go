@@ -20,12 +20,13 @@ const trustAppleScript = `on run argv
   return "declined"
 end run`
 
-func ConfirmServer(ctx context.Context, origin string) (bool, error) {
+func ConfirmServer(ctx context.Context, request TrustRequest) (bool, error) {
 	osascript, err := exec.LookPath("osascript")
 	if err != nil {
 		return false, errors.New("osascript is required to confirm server trust")
 	}
-	output, err := exec.CommandContext(ctx, osascript, "-e", trustAppleScript, "--", origin).Output()
+	description := request.Origin + "\nTool: " + request.ExtensionID
+	output, err := exec.CommandContext(ctx, osascript, "-e", trustAppleScript, "--", description).Output()
 	if err != nil {
 		return false, err
 	}

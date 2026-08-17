@@ -208,6 +208,8 @@ func TestDeepSeekHarnessCreateAndConsumeTicketOnce(t *testing.T) {
 	require.Equal(t, pinnedDSHVersion, task.DSHVersion)
 	require.Equal(t, "SUB2API_API_KEY", task.Provider.CredentialName)
 	require.Equal(t, "gpt-5.6-sol", task.Provider.Model.ID)
+	require.Equal(t, task.APIKey, task.Payload.APIKey)
+	require.Equal(t, task.Provider, task.Payload.Provider)
 	require.Contains(t, task.StatusURL, created.ID)
 
 	_, err = service.Exchange(context.Background(), ExchangeRequest{Ticket: ticket})

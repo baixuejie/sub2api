@@ -31,7 +31,7 @@ func (w *Workflow) Run(ctx context.Context, rawURI string) (string, error) {
 	if w.Paths.TrustedSitesFile == "" {
 		return "", errors.New("trusted server file path is required")
 	}
-	if err := consent.EnsureTrusted(ctx, w.Paths.TrustedSitesFile, launch.Server, w.ConfirmTrust); err != nil {
+	if err := consent.EnsureTrusted(ctx, w.Paths.TrustedSitesFile, launch.Server, launch.ExtensionID, w.ConfirmTrust); err != nil {
 		return "", err
 	}
 	client := w.Client
@@ -85,7 +85,13 @@ func (w *Workflow) Run(ctx context.Context, rawURI string) (string, error) {
 	if run == nil {
 		run = runner.ExecRunner{}
 	}
-	result, executionErr := adapter.Execute(ctx, AdapterExecution{Task: task, Runner: run, Paths: w.Paths, Report: report})
+	toolDataDir, err := w.Paths.ToolDataDir(task.ToolID)
+	if err != nil {
+		return fail("tool_data_path_failed", err)
+	}
+	result, executionErr := adapter.Execute(ctx, AdapterExecution{
+		Task: task, Runner: run, Paths: w.Paths, ToolDataDir: toolDataDir, Report: report,
+	})
 	if executionErr != nil {
 		var reportErr *workflowReportError
 		if errors.As(executionErr, &reportErr) {

@@ -24,7 +24,7 @@ func TestWorkflowDeclinedTrustDoesNotContactServer(t *testing.T) {
 	launchURI := "sub2api-harness://bootstrap?server=" + url.QueryEscape(server.URL) + "&ticket=ticket&operation_id=operation"
 	workflow := Workflow{
 		Paths: config.PathsFor(t.TempDir()),
-		ConfirmTrust: func(context.Context, string) (bool, error) {
+		ConfirmTrust: func(context.Context, consent.TrustRequest) (bool, error) {
 			return false, nil
 		},
 	}
@@ -44,15 +44,15 @@ func TestWorkflowDispatchesThroughRegisteredAdapter(t *testing.T) {
 	mux := http.NewServeMux()
 	server := httptest.NewServer(mux)
 	defer server.Close()
-	mux.HandleFunc("/api/v1/deepseek-harness/exchange", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v1/test-extension/exchange", func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(Envelope[Task]{Data: Task{
-			OperationID: "operation", EventToken: "event", APIKey: "secret",
-			StatusURL:       server.URL + "/api/v1/deepseek-harness/sessions/operation/events",
+			OperationID: "operation", EventToken: "event",
+			StatusURL:       server.URL + "/api/v1/test-extension/sessions/operation/events",
 			ProtocolVersion: CurrentTaskProtocolVersion, ToolID: "test-adapter",
 			ToolVersion: "2.3.4", MinimumHelperVersion: "0.1.0",
 		}})
 	})
-	mux.HandleFunc("/api/v1/deepseek-harness/sessions/operation/events", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v1/test-extension/sessions/operation/events", func(w http.ResponseWriter, r *http.Request) {
 		var event StatusEvent
 		if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
 			t.Fatal(err)
@@ -68,9 +68,9 @@ func TestWorkflowDispatchesThroughRegisteredAdapter(t *testing.T) {
 	}
 	workflow := Workflow{
 		Paths: config.PathsFor(t.TempDir()), Registry: registry, HelperVersion: "0.1.0",
-		ConfirmTrust: func(context.Context, string) (bool, error) { return true, nil },
+		ConfirmTrust: func(context.Context, consent.TrustRequest) (bool, error) { return true, nil },
 	}
-	launchURI := "sub2api-harness://bootstrap?server=" + url.QueryEscape(server.URL) + "&ticket=ticket&operation_id=operation"
+	launchURI := "sub2api-harness://bootstrap?server=" + url.QueryEscape(server.URL) + "&ticket=ticket&operation_id=operation&extension_id=test-extension"
 	harnessURL, err := workflow.Run(context.Background(), launchURI)
 	if err != nil {
 		t.Fatal(err)
@@ -86,15 +86,15 @@ func TestWorkflowReportsHelperUpgradeRequirement(t *testing.T) {
 	mux := http.NewServeMux()
 	server := httptest.NewServer(mux)
 	defer server.Close()
-	mux.HandleFunc("/api/v1/deepseek-harness/exchange", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v1/test-extension/exchange", func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(Envelope[Task]{Data: Task{
-			OperationID: "operation", EventToken: "event", APIKey: "secret",
-			StatusURL:       server.URL + "/api/v1/deepseek-harness/sessions/operation/events",
+			OperationID: "operation", EventToken: "event",
+			StatusURL:       server.URL + "/api/v1/test-extension/sessions/operation/events",
 			ProtocolVersion: CurrentTaskProtocolVersion, ToolID: "test-adapter",
 			ToolVersion: "2.3.4", MinimumHelperVersion: "0.2.0",
 		}})
 	})
-	mux.HandleFunc("/api/v1/deepseek-harness/sessions/operation/events", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v1/test-extension/sessions/operation/events", func(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&reported); err != nil {
 			t.Fatal(err)
 		}
@@ -106,9 +106,9 @@ func TestWorkflowReportsHelperUpgradeRequirement(t *testing.T) {
 	}
 	workflow := Workflow{
 		Paths: config.PathsFor(t.TempDir()), Registry: registry, HelperVersion: "0.1.0",
-		ConfirmTrust: func(context.Context, string) (bool, error) { return true, nil },
+		ConfirmTrust: func(context.Context, consent.TrustRequest) (bool, error) { return true, nil },
 	}
-	launchURI := "sub2api-harness://bootstrap?server=" + url.QueryEscape(server.URL) + "&ticket=ticket&operation_id=operation"
+	launchURI := "sub2api-harness://bootstrap?server=" + url.QueryEscape(server.URL) + "&ticket=ticket&operation_id=operation&extension_id=test-extension"
 	_, err = workflow.Run(context.Background(), launchURI)
 	var upgradeRequired *HelperUpgradeRequiredError
 	if !errors.As(err, &upgradeRequired) {
@@ -124,6 +124,8 @@ type recordingAdapter struct {
 }
 
 func (recordingAdapter) ToolID() string { return "test-adapter" }
+
+func (recordingAdapter) AllowedExtensionIDs() []string { return []string{"test-extension"} }
 
 func (recordingAdapter) Validate(task Task) error {
 	if task.ToolVersion != "2.3.4" {

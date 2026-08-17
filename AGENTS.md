@@ -164,9 +164,10 @@ git config merge.renormalize true
 
 ## 6. 本地工具与 Helper 扩展规范
 
-- API Key 页面上的本地工具统一由 `frontend/src/features/local-tools/` 提供下拉入口，核心页面只负责传入 Key 状态、Feature Flag 和必要事件。
+- API Key 页面上的本地工具统一由 `frontend/src/features/local-tools/` 提供下拉入口，核心页面只挂载一次通用入口并传入 Key 与公开设置；工具的描述、Feature Flag、禁用规则、动作组件和参数统一在 `localToolRegistry.ts` 注册，新增工具不得修改 `KeysView.vue`。
 - CC Switch 继续使用其官方 `ccswitch://` 协议，不经过 Sub2API Helper。
-- 需要本机安装、配置或启动的工具统一复用 Sub2API Helper 任务协议。任务必须包含 `protocol_version`、`tool_id`、`tool_version` 和 `minimum_helper_version`，并保留已有协议所需的兼容字段；新增后端模块通过受限 `extension_id` 使用自己的同源兑换与状态接口。
-- Helper 只能按 `tool_id` 调用二进制内显式注册的白名单 adapter，不得执行后端下发的任意 Shell、PowerShell、可执行文件路径或参数数组。
-- 新增 Hermes、OpenClaw 等工具时，优先复用已发布 Helper 的受控能力；确需新增 adapter、底层安装能力或安全修复时，必须提高 `minimum_helper_version` 并发布新版 Helper。
+- 需要本机安装、配置或启动的工具统一复用 Sub2API Helper 任务协议。任务必须包含 `protocol_version`、`tool_id`、`tool_version`、`minimum_helper_version` 和由 Adapter 独立解码的受限 `payload`，并保留已有协议所需的兼容字段；新增后端模块通过受限 `extension_id` 使用自己的同源兑换与状态接口。
+- Helper 只能按编译期 Registry 中显式绑定的 `extension_id -> tool_id` 调用白名单 Adapter；站点信任也必须绑定 origin 与 `extension_id`，不得执行后端下发的任意 Shell、PowerShell、可执行文件路径或参数数组。
+- 首次新增 Hermes、OpenClaw 等工具时必须注册 Extension 与 Adapter 的绑定并发布新版 Helper；后续仅调整已兼容的后端任务定义时可以复用已发布 Helper。新增底层安装能力或安全修复时必须提高 `minimum_helper_version`。
 - 新工具的 UI、后端任务定义和 Helper adapter 分别保持独立命名空间，禁止把工具专用安装逻辑重新写回 API Key 核心页面或通用任务分派器。
+- 本地工具后端路由统一通过 `backend/internal/extensions/local-tools/` 接入，核心 `server/router.go` 只保留一次聚合注册；新增工具不得直接向核心 Router 增加专用依赖。

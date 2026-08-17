@@ -45,3 +45,25 @@ func PathsFor(base string) Paths {
 		TrustedSitesFile: filepath.Join(base, "trusted-sites.json"),
 	}
 }
+
+// ToolDataDir gives each adapter a stable private namespace without adding
+// tool-specific fields to the shared workflow contract.
+func (p Paths) ToolDataDir(toolID string) (string, error) {
+	if p.DataDir == "" || !validToolID(toolID) {
+		return "", errors.New("resolve tool data directory")
+	}
+	return filepath.Join(p.DataDir, "tools", toolID), nil
+}
+
+func validToolID(value string) bool {
+	if value == "" || len(value) > 64 {
+		return false
+	}
+	for _, char := range value {
+		if (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}

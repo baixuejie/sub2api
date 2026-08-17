@@ -177,11 +177,11 @@ func (c *Client) postJSON(ctx context.Context, endpoint, bearer string, payload,
 }
 
 func validateTask(task Task, launch LaunchRequest) error {
-	if task.OperationID == "" || task.OperationID != launch.OperationID || task.EventToken == "" || task.APIKey == "" {
+	if task.OperationID == "" || task.OperationID != launch.OperationID || task.EventToken == "" {
 		return errors.New("exchange returned an incomplete task")
 	}
-	if len(task.EventToken) > 4096 || len(task.APIKey) > 64<<10 {
-		return errors.New("exchange returned an oversized credential")
+	if len(task.EventToken) > 4096 || len(task.Payload) > 256<<10 {
+		return errors.New("exchange returned an oversized task field")
 	}
 	if _, err := ValidateStatusURL(task.StatusURL, launch.Server, task.OperationID, launch.ExtensionID); err != nil {
 		return err

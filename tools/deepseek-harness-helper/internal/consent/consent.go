@@ -17,35 +17,50 @@ import (
 )
 
 const (
-	trustedSitesVersion  = 1
+	trustedSitesVersion  = 2
 	maxTrustedSitesBytes = 64 << 10
 )
 
 var ErrTrustDeclined = errors.New("server trust was not approved")
 
-type Prompt func(context.Context, string) (bool, error)
-
-type trustedSites struct {
-	Version int      `json:"version"`
-	Origins []string `json:"origins"`
+type TrustRequest struct {
+	Origin      string
+	ExtensionID string
 }
 
-func EnsureTrusted(ctx context.Context, filename, rawOrigin string, prompt Prompt) error {
+type Prompt func(context.Context, TrustRequest) (bool, error)
+
+type trustedScope struct {
+	Origin      string `json:"origin"`
+	ExtensionID string `json:"extension_id"`
+}
+
+type trustedSites struct {
+	Version int            `json:"version"`
+	Origins []string       `json:"origins,omitempty"`
+	Scopes  []trustedScope `json:"scopes,omitempty"`
+}
+
+func EnsureTrusted(ctx context.Context, filename, rawOrigin, extensionID string, prompt Prompt) error {
 	origin, err := canonicalOrigin(rawOrigin)
 	if err != nil {
 		return err
 	}
+	if !validExtensionID(extensionID) {
+		return errors.New("invalid trusted tool extension ID")
+	}
+	request := TrustRequest{Origin: origin, ExtensionID: extensionID}
 	trusted, err := readTrustedSites(filename)
 	if err != nil {
 		return err
 	}
-	if containsOrigin(trusted.Origins, origin) {
+	if containsScope(trusted.Scopes, request) {
 		return nil
 	}
 	if prompt == nil {
 		prompt = ConfirmServer
 	}
-	approved, err := prompt(ctx, origin)
+	approved, err := prompt(ctx, request)
 	if err != nil {
 		return fmt.Errorf("confirm server trust: %w", err)
 	}
@@ -61,25 +76,34 @@ func EnsureTrusted(ctx context.Context, filename, rawOrigin string, prompt Promp
 	if err != nil {
 		return err
 	}
-	if containsOrigin(trusted.Origins, origin) {
+	if containsScope(trusted.Scopes, request) {
 		return nil
 	}
 	trusted.Version = trustedSitesVersion
-	trusted.Origins = append(trusted.Origins, origin)
-	sort.Strings(trusted.Origins)
+	trusted.Origins = nil
+	trusted.Scopes = append(trusted.Scopes, trustedScope(request))
+	sort.Slice(trusted.Scopes, func(i, j int) bool {
+		if trusted.Scopes[i].Origin == trusted.Scopes[j].Origin {
+			return trusted.Scopes[i].ExtensionID < trusted.Scopes[j].ExtensionID
+		}
+		return trusted.Scopes[i].Origin < trusted.Scopes[j].Origin
+	})
 	return writeTrustedSites(filename, trusted)
 }
 
-func IsTrusted(filename, rawOrigin string) (bool, error) {
+func IsTrusted(filename, rawOrigin, extensionID string) (bool, error) {
 	origin, err := canonicalOrigin(rawOrigin)
 	if err != nil {
 		return false, err
+	}
+	if !validExtensionID(extensionID) {
+		return false, errors.New("invalid trusted tool extension ID")
 	}
 	trusted, err := readTrustedSites(filename)
 	if err != nil {
 		return false, err
 	}
-	return containsOrigin(trusted.Origins, origin), nil
+	return containsScope(trusted.Scopes, TrustRequest{Origin: origin, ExtensionID: extensionID}), nil
 }
 
 func canonicalOrigin(raw string) (string, error) {
@@ -149,19 +173,32 @@ func readTrustedSites(filename string) (trustedSites, error) {
 	if err := ensureJSONEOF(decoder); err != nil {
 		return trustedSites{}, err
 	}
-	if trusted.Version != trustedSitesVersion || len(trusted.Origins) > 128 {
+	if trusted.Version == 1 {
+		if len(trusted.Origins) > 128 || len(trusted.Scopes) != 0 {
+			return trustedSites{}, errors.New("trusted server file has an unsupported format")
+		}
+		for _, origin := range trusted.Origins {
+			canonical, err := canonicalOrigin(origin)
+			if err != nil || canonical != origin {
+				return trustedSites{}, errors.New("trusted server file contains an invalid origin")
+			}
+		}
+		// Origin-wide v1 trust is deliberately not promoted to a tool scope.
+		return trustedSites{Version: trustedSitesVersion}, nil
+	}
+	if trusted.Version != trustedSitesVersion || len(trusted.Origins) != 0 || len(trusted.Scopes) > 128 {
 		return trustedSites{}, errors.New("trusted server file has an unsupported format")
 	}
-	seen := make(map[string]struct{}, len(trusted.Origins))
-	for _, origin := range trusted.Origins {
-		canonical, err := canonicalOrigin(origin)
-		if err != nil || canonical != origin {
-			return trustedSites{}, errors.New("trusted server file contains an invalid origin")
+	seen := make(map[trustedScope]struct{}, len(trusted.Scopes))
+	for _, scope := range trusted.Scopes {
+		canonical, err := canonicalOrigin(scope.Origin)
+		if err != nil || canonical != scope.Origin || !validExtensionID(scope.ExtensionID) {
+			return trustedSites{}, errors.New("trusted server file contains an invalid scope")
 		}
-		if _, exists := seen[origin]; exists {
-			return trustedSites{}, errors.New("trusted server file contains a duplicate origin")
+		if _, exists := seen[scope]; exists {
+			return trustedSites{}, errors.New("trusted server file contains a duplicate scope")
 		}
-		seen[origin] = struct{}{}
+		seen[scope] = struct{}{}
 	}
 	return trusted, nil
 }
@@ -177,13 +214,26 @@ func ensureJSONEOF(decoder *json.Decoder) error {
 	return nil
 }
 
-func containsOrigin(origins []string, target string) bool {
-	for _, origin := range origins {
-		if origin == target {
+func containsScope(scopes []trustedScope, target TrustRequest) bool {
+	for _, scope := range scopes {
+		if scope.Origin == target.Origin && scope.ExtensionID == target.ExtensionID {
 			return true
 		}
 	}
 	return false
+}
+
+func validExtensionID(value string) bool {
+	if value == "" || len(value) > 64 {
+		return false
+	}
+	for _, char := range value {
+		if (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '-' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func writeTrustedSites(filename string, trusted trustedSites) error {

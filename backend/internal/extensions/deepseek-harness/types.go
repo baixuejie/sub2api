@@ -156,15 +156,22 @@ type ProviderTask struct {
 	Model          ModelOption `json:"model"`
 }
 
+type DeepSeekHarnessPayload struct {
+	APIKey   string       `json:"api_key"`
+	Provider ProviderTask `json:"provider"`
+}
+
 type BootstrapTask struct {
-	OperationID          string       `json:"operation_id"`
-	EventToken           string       `json:"event_token"`
-	StatusURL            string       `json:"status_url"`
-	ProtocolVersion      string       `json:"protocol_version"`
-	ToolID               string       `json:"tool_id"`
-	ToolVersion          string       `json:"tool_version"`
-	MinimumHelperVersion string       `json:"minimum_helper_version"`
-	DSHVersion           string       `json:"dsh_version"`
-	APIKey               string       `json:"api_key"`
-	Provider             ProviderTask `json:"provider"`
+	OperationID          string                 `json:"operation_id"`
+	EventToken           string                 `json:"event_token"`
+	StatusURL            string                 `json:"status_url"`
+	ProtocolVersion      string                 `json:"protocol_version"`
+	ToolID               string                 `json:"tool_id"`
+	ToolVersion          string                 `json:"tool_version"`
+	MinimumHelperVersion string                 `json:"minimum_helper_version"`
+	Payload              DeepSeekHarnessPayload `json:"payload"`
+	// Deprecated flat fields are retained until pre-payload Helpers age out.
+	DSHVersion string       `json:"dsh_version"`
+	APIKey     string       `json:"api_key"`
+	Provider   ProviderTask `json:"provider"`
 }

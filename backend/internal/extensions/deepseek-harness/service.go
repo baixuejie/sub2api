@@ -209,6 +209,14 @@ func (s *installService) Exchange(ctx context.Context, request ExchangeRequest) 
 		return BootstrapTask{}, err
 	}
 	statusURL := strings.TrimRight(profile.ServerURL, "/") + "/api/v1/deepseek-harness/sessions/" + session.ID + "/events"
+	providerTask := ProviderTask{
+		Route:          profile.Provider,
+		DisplayName:    profile.ProviderName,
+		Protocol:       profile.Protocol,
+		BaseURL:        profile.BaseURL,
+		CredentialName: credentialReferenceName,
+		Model:          model,
+	}
 	task := BootstrapTask{
 		OperationID:          session.ID,
 		EventToken:           ticket.EventToken,
@@ -217,16 +225,13 @@ func (s *installService) Exchange(ctx context.Context, request ExchangeRequest) 
 		ToolID:               deepSeekHarnessToolID,
 		ToolVersion:          pinnedDSHVersion,
 		MinimumHelperVersion: minimumHelperVersion,
-		DSHVersion:           pinnedDSHVersion,
-		APIKey:               key.Key,
-		Provider: ProviderTask{
-			Route:          profile.Provider,
-			DisplayName:    profile.ProviderName,
-			Protocol:       profile.Protocol,
-			BaseURL:        profile.BaseURL,
-			CredentialName: credentialReferenceName,
-			Model:          model,
+		Payload: DeepSeekHarnessPayload{
+			APIKey:   key.Key,
+			Provider: providerTask,
 		},
+		DSHVersion: pinnedDSHVersion,
+		APIKey:     key.Key,
+		Provider:   providerTask,
 	}
 
 	_, err = s.store.UpdateSession(ctx, session.ID, func(current *InstallSession) error {

@@ -28,9 +28,11 @@ const mountAction = (props: Record<string, unknown> = {}) =>
     attachTo: document.body,
     props: {
       apiKey,
-      publicSettings: { site_name: 'Sub2API Test', api_base_url: 'https://api.example.com' },
-      showCcSwitch: true,
-      deepSeekHarnessEnabled: true,
+      publicSettings: {
+        site_name: 'Sub2API Test',
+        api_base_url: 'https://api.example.com',
+        deepseek_harness_enabled: true
+      },
       ...props
     },
     global: {
@@ -113,11 +115,55 @@ describe('LocalToolsAction', () => {
 
   it('keeps the trigger disabled when the only tool cannot use the key', () => {
     const wrapper = mountAction({
-      showCcSwitch: false,
+      publicSettings: {
+        site_name: 'Sub2API Test',
+        api_base_url: 'https://api.example.com',
+        hide_ccs_import_button: true,
+        deepseek_harness_enabled: true
+      },
       apiKey: { ...apiKey, status: 'inactive' }
     })
 
     expect(wrapper.get('button').attributes('disabled')).toBeDefined()
+    wrapper.unmount()
+  })
+
+  it('renders no core-page placeholder when every registered tool is hidden', () => {
+    const wrapper = mountAction({
+      publicSettings: {
+        site_name: 'Sub2API Test',
+        api_base_url: 'https://api.example.com',
+        hide_ccs_import_button: true,
+        deepseek_harness_enabled: false
+      }
+    })
+
+    expect(wrapper.find('button').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('supports arrow navigation and restores trigger focus on Escape', async () => {
+    const wrapper = mountAction()
+    const trigger = wrapper.get('button')
+
+    await trigger.trigger('click')
+    await flushPromises()
+    expect(document.activeElement?.textContent).toContain('CC Switch')
+
+    document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'ArrowDown',
+      bubbles: true
+    }))
+    await flushPromises()
+    expect(document.activeElement?.textContent).toContain('DeepSeek Harness')
+
+    document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true
+    }))
+    await flushPromises()
+    expect(document.body.textContent).not.toContain('选择工具')
+    expect(document.activeElement).toBe(trigger.element)
     wrapper.unmount()
   })
 })

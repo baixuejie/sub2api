@@ -379,13 +379,7 @@
                 <Icon name="terminal" size="sm" />
                 <span class="text-xs">{{ t('keys.useKey') }}</span>
               </button>
-              <LocalToolsAction
-                v-if="!publicSettings?.hide_ccs_import_button || deepSeekHarnessEnabled"
-                :api-key="row"
-                :public-settings="publicSettings"
-                :show-cc-switch="!publicSettings?.hide_ccs_import_button"
-                :deep-seek-harness-enabled="deepSeekHarnessEnabled"
-              />
+              <LocalToolsAction :api-key="row" :public-settings="publicSettings" />
               <!-- Toggle Status Button -->
               <button
                 @click="toggleKeyStatus(row)"
@@ -1097,7 +1091,6 @@ import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
 import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
-import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 
 // Helper to format date for datetime-local input
 const formatDateTimeLocal = (isoDate: string): string => {
@@ -1254,9 +1247,6 @@ const selectedKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
-const deepSeekHarnessEnabled = computed(() =>
-  resolveFeatureFlag(FeatureFlags.deepSeekHarness, publicSettings.value)
-)
 const dropdownRef = ref<HTMLElement | null>(null)
 const columnDropdownRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)

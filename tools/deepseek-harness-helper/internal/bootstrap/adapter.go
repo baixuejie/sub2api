@@ -12,10 +12,11 @@ import (
 )
 
 type AdapterExecution struct {
-	Task   Task
-	Runner runner.Runner
-	Paths  config.Paths
-	Report func(StatusEvent) error
+	Task        Task
+	Runner      runner.Runner
+	Paths       config.Paths
+	ToolDataDir string
+	Report      func(StatusEvent) error
 }
 
 type AdapterResult struct {
@@ -36,28 +37,46 @@ func (e *HelperUpgradeRequiredError) Error() string {
 // select an adapter by ID; they never supply executables, arguments, or scripts.
 type Adapter interface {
 	ToolID() string
+	AllowedExtensionIDs() []string
 	Validate(Task) error
 	Execute(context.Context, AdapterExecution) (AdapterResult, error)
 }
 
 type AdapterRegistry struct {
-	adapters map[string]Adapter
+	adapters      map[string]Adapter
+	extensionTool map[string]string
 }
 
 func NewAdapterRegistry(adapters ...Adapter) (*AdapterRegistry, error) {
-	registry := &AdapterRegistry{adapters: make(map[string]Adapter, len(adapters))}
+	registry := &AdapterRegistry{
+		adapters:      make(map[string]Adapter, len(adapters)),
+		extensionTool: make(map[string]string, len(adapters)),
+	}
 	for _, adapter := range adapters {
 		if adapter == nil {
 			return nil, errors.New("register nil tool adapter")
 		}
 		id := adapter.ToolID()
-		if id == "" || strings.TrimSpace(id) != id {
+		if !validExtensionID(id) {
 			return nil, errors.New("register tool adapter with invalid ID")
 		}
 		if _, exists := registry.adapters[id]; exists {
 			return nil, fmt.Errorf("register duplicate tool adapter %q", id)
 		}
 		registry.adapters[id] = adapter
+		extensionIDs := adapter.AllowedExtensionIDs()
+		if len(extensionIDs) == 0 {
+			return nil, fmt.Errorf("register tool adapter %q without an extension ID", id)
+		}
+		for _, extensionID := range extensionIDs {
+			if !validExtensionID(extensionID) {
+				return nil, fmt.Errorf("register tool adapter %q with invalid extension ID", id)
+			}
+			if existing, exists := registry.extensionTool[extensionID]; exists {
+				return nil, fmt.Errorf("register extension ID %q for both %q and %q", extensionID, existing, id)
+			}
+			registry.extensionTool[extensionID] = id
+		}
 	}
 	return registry, nil
 }
@@ -89,6 +108,15 @@ func (r *AdapterRegistry) Resolve(task Task, helperVersion string) (Adapter, Tas
 	adapter, ok := r.adapters[normalized.ToolID]
 	if !ok {
 		return nil, Task{}, fmt.Errorf("unsupported tool_id %q", normalized.ToolID)
+	}
+	extensionID := normalized.ExtensionID
+	if extensionID == "" {
+		extensionID = DefaultExtensionID
+		normalized.ExtensionID = extensionID
+	}
+	expectedToolID, ok := r.extensionTool[extensionID]
+	if !ok || expectedToolID != normalized.ToolID {
+		return nil, Task{}, fmt.Errorf("extension_id %q is not allowed to dispatch tool_id %q", extensionID, normalized.ToolID)
 	}
 	if err := adapter.Validate(normalized); err != nil {
 		return nil, Task{}, err

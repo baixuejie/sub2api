@@ -1,9 +1,12 @@
 package bootstrap
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"strings"
 
@@ -15,11 +18,19 @@ type DeepSeekHarnessAdapter struct{}
 
 func (DeepSeekHarnessAdapter) ToolID() string { return DeepSeekHarnessToolID }
 
+func (DeepSeekHarnessAdapter) AllowedExtensionIDs() []string {
+	return []string{DefaultExtensionID}
+}
+
 func (DeepSeekHarnessAdapter) Validate(task Task) error {
 	if task.ToolVersion != dsh.SupportedVersion {
 		return fmt.Errorf("unsupported tool_version for %s: expected %s", DeepSeekHarnessToolID, dsh.SupportedVersion)
 	}
-	p := task.Provider
+	payload, err := decodeDeepSeekHarnessPayload(task)
+	if err != nil {
+		return err
+	}
+	p := payload.Provider
 	if p.Route == "" || p.DisplayName == "" || p.Protocol == "" || p.BaseURL == "" || p.CredentialName == "" || p.Model.ID == "" || p.Model.Name == "" || p.Model.ContextWindow <= 0 || p.Model.MaxTokens <= 0 {
 		return errors.New("exchange returned an incomplete provider")
 	}
@@ -43,6 +54,10 @@ func (DeepSeekHarnessAdapter) Execute(ctx context.Context, execution AdapterExec
 	if execution.Report == nil {
 		return AdapterResult{}, errors.New("status reporter is required")
 	}
+	payload, err := decodeDeepSeekHarnessPayload(execution.Task)
+	if err != nil {
+		return AdapterResult{}, err
+	}
 	if err := execution.Report(StatusEvent{Status: StatusCheckingEnvironment, Stage: StatusCheckingEnvironment, Message: "Checking Node.js and npm", Progress: 10}); err != nil {
 		return AdapterResult{}, &workflowReportError{cause: err}
 	}
@@ -64,10 +79,10 @@ func (DeepSeekHarnessAdapter) Execute(ctx context.Context, execution AdapterExec
 			return &workflowReportError{cause: err}
 		}
 		provider := config.ProviderConfig{
-			Route: execution.Task.Provider.Route, DisplayName: execution.Task.Provider.DisplayName, Protocol: execution.Task.Provider.Protocol,
-			BaseURL: execution.Task.Provider.BaseURL, CredentialName: execution.Task.Provider.CredentialName,
-			ModelID: execution.Task.Provider.Model.ID, ModelName: execution.Task.Provider.Model.Name,
-			ContextWindow: execution.Task.Provider.Model.ContextWindow, MaxTokens: execution.Task.Provider.Model.MaxTokens,
+			Route: payload.Provider.Route, DisplayName: payload.Provider.DisplayName, Protocol: payload.Provider.Protocol,
+			BaseURL: payload.Provider.BaseURL, CredentialName: payload.Provider.CredentialName,
+			ModelID: payload.Provider.Model.ID, ModelName: payload.Provider.Model.Name,
+			ContextWindow: payload.Provider.Model.ContextWindow, MaxTokens: payload.Provider.Model.MaxTokens,
 		}
 		if err := execution.Report(StatusEvent{Status: StatusStarting, Stage: StatusStarting, Message: "Starting DeepSeek Harness", Progress: 80}); err != nil {
 			return &workflowReportError{cause: err}
@@ -75,7 +90,7 @@ func (DeepSeekHarnessAdapter) Execute(ctx context.Context, execution AdapterExec
 		if err := dsh.StopManaged(ctx, environment, execution.Paths, dshBin, execution.Task.ToolVersion); err != nil {
 			return &workflowStageError{code: "dsh_stop_failed", cause: err}
 		}
-		if err := config.Apply(execution.Paths, provider, execution.Task.APIKey); err != nil {
+		if err := config.Apply(execution.Paths, provider, payload.APIKey); err != nil {
 			return &workflowStageError{code: "configuration_failed", cause: err}
 		}
 		started, err := dsh.StartOrReuse(ctx, environment, execution.Paths, dshBin, execution.Task.ToolVersion, execution.Task.OperationID)
@@ -96,6 +111,47 @@ func (DeepSeekHarnessAdapter) Execute(ctx context.Context, execution AdapterExec
 		}
 	}
 	return AdapterResult{OpenURL: harnessURL, CompletionMessage: "DeepSeek Harness is ready"}, nil
+}
+
+func decodeDeepSeekHarnessPayload(task Task) (DeepSeekHarnessPayload, error) {
+	legacy := DeepSeekHarnessPayload{APIKey: task.APIKey, Provider: task.Provider}
+	legacyPresent := legacy.APIKey != "" || legacy.Provider != (Provider{})
+	if len(bytes.TrimSpace(task.Payload)) == 0 {
+		if !legacyPresent {
+			return DeepSeekHarnessPayload{}, errors.New("exchange returned a task without a DeepSeek Harness payload")
+		}
+		return validateDeepSeekHarnessCredential(legacy)
+	}
+	if len(task.Payload) > 256<<10 {
+		return DeepSeekHarnessPayload{}, errors.New("exchange returned an oversized tool payload")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(task.Payload))
+	decoder.DisallowUnknownFields()
+	var payload DeepSeekHarnessPayload
+	if err := decoder.Decode(&payload); err != nil {
+		return DeepSeekHarnessPayload{}, fmt.Errorf("decode DeepSeek Harness payload: %w", err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return DeepSeekHarnessPayload{}, errors.New("DeepSeek Harness payload contains trailing JSON")
+		}
+		return DeepSeekHarnessPayload{}, fmt.Errorf("decode DeepSeek Harness payload: %w", err)
+	}
+	if legacyPresent && payload != legacy {
+		return DeepSeekHarnessPayload{}, errors.New("exchange returned conflicting payload and legacy DSH fields")
+	}
+	return validateDeepSeekHarnessCredential(payload)
+}
+
+func validateDeepSeekHarnessCredential(payload DeepSeekHarnessPayload) (DeepSeekHarnessPayload, error) {
+	if payload.APIKey == "" {
+		return DeepSeekHarnessPayload{}, errors.New("exchange returned a DeepSeek Harness payload without an API key")
+	}
+	if len(payload.APIKey) > 64<<10 {
+		return DeepSeekHarnessPayload{}, errors.New("exchange returned an oversized API key")
+	}
+	return payload, nil
 }
 
 func allowedProviderProtocol(route, protocol string) bool {

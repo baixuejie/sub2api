@@ -12,7 +12,7 @@
 
    `server` 只接受 HTTPS，或 `localhost` / loopback IP 的 HTTP origin。禁止 userinfo、额外路径、query 和 fragment。`extension_id` 只允许小写字母、数字和短横线，省略时兼容使用 `deepseek-harness`。
 
-2. 在访问服务器前显示系统原生确认框，明确展示规范化后的 origin。用户批准后写入私有 `trusted-sites.json`；同一 origin 后续不重复询问，其他站点必须单独批准。
+2. 在访问服务器前显示系统原生确认框，明确展示规范化后的 origin 和 `extension_id`。用户批准后写入私有 `trusted-sites.json`；信任按 origin 与 Extension 组合保存。旧版 origin 级信任不会自动升级，首次使用具体工具时需要重新确认一次。
 3. `POST <server>/api/v1/<extension_id>/exchange`，body 为 `{"ticket":"..."}`，读取标准 `{"data": ...}` envelope；状态地址也必须精确匹配同一 Extension 和 `operation_id`。
 4. 使用 exchange 返回的 `status_url` 和 `Bearer <event_token>` 依次上报：
    `checking_environment`、`installing`、`configuring`、`starting`、`completed`；失败上报 `failed`。
@@ -45,14 +45,15 @@
 - `tool_id`: 工具白名单标识，当前仅注册 `deepseek-harness`
 - `tool_version`: adapter 明确支持的工具版本
 - `minimum_helper_version`: 执行任务所需的最低 Helper SemVer
+- `payload`: 工具私有数据，由对应 Adapter 使用严格 JSON schema 解码；通用 Client 不要求 API Key 或 Provider 字段
 
 四个字段必须同时存在。正式构建使用编译时注入的 Helper 版本进行 SemVer 比较；本地 `dev` 构建按代码声明的兼容版本 `0.1.0` 比较，不会被视为无限新版本。仅包含 `dsh_version`、未包含上述四个字段的旧任务仍按协议 `1`、工具 `deepseek-harness` 兼容执行；新旧版本字段同时存在时必须一致。
 
 任务只能通过 `tool_id` 选择 Helper 二进制内显式注册的 adapter，服务端不能下发 executable、命令参数或 shell 脚本。未知工具、未知协议、不支持的工具版本、无效版本号，以及高于当前 Helper 的 `minimum_helper_version` 都会在执行任何工具动作前被拒绝。
 
-后续接入 Hermes、OpenClaw 等工具时，应新增独立 adapter，或复用 Helper 已发布版本中已有的受控安装能力。只增加后端工具定义且现有 Helper 已具备所需能力时，用户无需更新；需要新增 adapter、底层安装能力或安全修复时，必须提高 `minimum_helper_version` 并发布新版 Helper。不得为了免升级而把官方安装脚本或任意命令直接从服务端下发执行。
+Helper 还会校验编译期 Registry 中的 `extension_id -> tool_id` 显式绑定，禁止一个 Extension 借响应触发另一个工具的 Adapter。后续接入 Hermes、OpenClaw 等工具时，首次必须新增独立 Adapter 与绑定并发布新版 Helper；之后仅调整兼容的后端任务定义时无需更新。需要新增底层安装能力或安全修复时，必须提高 `minimum_helper_version`。不得为了免升级而把官方安装脚本或任意命令直接从服务端下发执行。
 
-启动 URI 可选的 `extension_id` 决定同源后端 Extension 路径，例如 `hermes` 会使用 `/api/v1/hermes/exchange` 和 `/api/v1/hermes/sessions/<operation_id>/events`。Helper 对标识和最终 URL 再次做严格校验，因此新增后端 Extension 不需要修改网络分派主流程。
+启动 URI 可选的 `extension_id` 决定同源后端 Extension 路径，例如 `hermes` 会使用 `/api/v1/hermes/exchange` 和 `/api/v1/hermes/sessions/<operation_id>/events`。Helper 对标识、Registry 绑定和最终 URL 再次做严格校验；新增后端 Extension 不需要修改网络分派主流程，但必须在 Helper Registry 中登记后才能执行。
 
 ## 数据目录
 
@@ -138,7 +139,7 @@ deepseek-harness-helper --version
 ## 安全和限制
 
 - Node 缺失、npm 缺失或 Node 低于 `22.19.0` 时立即失败并上报，不自动安装或升级 Node。
-- 未经本机用户确认的 origin 不会收到任何网络请求。确认框显示精确 origin；只应批准自己信任的 Sub2API 站点。
+- 未经本机用户确认的 origin 与 Extension 组合不会收到任何网络请求。确认框显示精确 origin 和工具标识；只应批准自己信任的 Sub2API 站点及工具。
 - Exchange 不携带长期认证；ticket 应由服务端保持短时、单次使用。API key 只写入私有 credentials 文件，不进入命令参数或 Helper 日志。
 - Exchange 任务只能选择 Helper 内置白名单 adapter；任务协议不接受任意命令、参数数组或脚本，不能把服务端数据解释为 shell。
 - 固定凭据槽意味着当前 DSH_HOME 只保留一个 Sub2API-managed provider；再次从其他 Key/分组安装会替换上一次的 `sub2api-*` provider 和默认模型。

@@ -53,7 +53,9 @@ POST /api/v1/deepseek-harness/sessions/:id/events       Bearer event token
 }
 ```
 
-Helper 通过 `tool_id` 分派二进制内注册的白名单 adapter。后续 Hermes、OpenClaw 等工具应新增独立 Extension 和 adapter，或复用已发布 Helper 的受控能力；服务端不能下发任意安装脚本、可执行文件或命令参数。只有现有 Helper 已具备所需能力时，新工具才可以免升级接入；新增底层能力时必须提高 `minimum_helper_version`。
+通用任务另外包含由 Adapter 独立严格解码的 `payload`。DSH 暂时同时返回旧版顶层 `api_key`、`provider` 字段以兼容已发布 Helper，新旧字段必须完全一致。
+
+Helper 通过编译期 Registry 中显式登记的 `extension_id -> tool_id` 绑定分派白名单 Adapter。后续 Hermes、OpenClaw 等工具首次接入时必须新增独立 Extension、Adapter 与绑定并发布新版 Helper；后续协议兼容的后端调整无需升级。服务端不能下发任意安装脚本、可执行文件或命令参数；新增底层能力时必须提高 `minimum_helper_version`。
 
 ## 模型策略
 
