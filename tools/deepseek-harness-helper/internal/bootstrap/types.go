@@ -67,7 +67,7 @@ type DeepSeekHarnessPayload struct {
 const (
 	CurrentTaskProtocolVersion = "1"
 	DeepSeekHarnessToolID      = "deepseek-harness"
-	DevelopmentHelperVersion   = "0.1.2"
+	DevelopmentHelperVersion   = "0.1.3"
 )
 
 type StatusEvent struct {

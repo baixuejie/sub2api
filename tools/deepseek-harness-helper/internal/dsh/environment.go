@@ -60,6 +60,13 @@ func CheckEnvironment(ctx context.Context, run runner.Runner) (Environment, erro
 	if err != nil {
 		return Environment{}, errors.New("npm is not installed or not on PATH")
 	}
+	return checkEnvironmentExecutables(ctx, run, node, npm)
+}
+
+func checkEnvironmentExecutables(ctx context.Context, run runner.Runner, node, npm string) (Environment, error) {
+	if run == nil {
+		return Environment{}, errors.New("runner is required")
+	}
 	nodeResult, err := run.Run(ctx, node, []string{"--version"}, "", nil, nil)
 	if err != nil {
 		return Environment{}, fmt.Errorf("run node --version: %w", err)

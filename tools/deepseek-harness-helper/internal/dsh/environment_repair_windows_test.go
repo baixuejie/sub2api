@@ -90,6 +90,19 @@ func TestEnsureNVMUsesExistingInstallationWithoutWinget(t *testing.T) {
 	}
 }
 
+func TestResolveNVMSymlinkPrefersNVMSettingsPath(t *testing.T) {
+	t.Parallel()
+	nvmHome := t.TempDir()
+	nvmPath := filepath.Join(nvmHome, "nvm.exe")
+	want := filepath.Join(t.TempDir(), "custom-nodejs")
+	if err := os.WriteFile(filepath.Join(nvmHome, "settings.txt"), []byte("root: "+nvmHome+"\r\npath: "+want+"\r\narch: 64\r\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolveNVMSymlink(nvmPath); got != want {
+		t.Fatalf("resolveNVMSymlink() = %q, want %q", got, want)
+	}
+}
+
 func TestValidateNVMSymlinkRejectsPhysicalDirectory(t *testing.T) {
 	t.Parallel()
 	physical := filepath.Join(t.TempDir(), "nodejs")

@@ -23,11 +23,11 @@ func repairEnvironment(ctx context.Context, run runner.Runner, stdout, stderr io
 	if run == nil {
 		return Environment{}, errors.New("runner is required")
 	}
-	if err := ensureNVMSymlinkAvailable(); err != nil {
-		return Environment{}, err
-	}
 	nvmPath, err := ensureNVM(ctx, run, stdout, stderr, cause, findNVM)
 	if err != nil {
+		return Environment{}, err
+	}
+	if err := validateNVMSymlink(resolveNVMSymlink(nvmPath)); err != nil {
 		return Environment{}, err
 	}
 	refreshNVMEnvironment(nvmPath)
@@ -47,7 +47,11 @@ func repairEnvironment(ctx context.Context, run runner.Runner, stdout, stderr io
 	refreshNVMEnvironment(nvmPath)
 	environment, err := CheckEnvironment(ctx, run)
 	if err != nil {
-		return Environment{}, fmt.Errorf("verify Node.js after nvm use lts: %w", err)
+		environment, directErr := checkNVMEnvironment(ctx, run, nvmPath)
+		if directErr != nil {
+			return Environment{}, fmt.Errorf("verify Node.js after nvm use lts: %v; verify NVM managed executables: %w", err, directErr)
+		}
+		return environment, nil
 	}
 	return environment, nil
 }
@@ -145,7 +149,7 @@ func nvmCandidates() []string {
 
 func refreshNVMEnvironment(nvmPath string) {
 	nvmHome := filepath.Dir(nvmPath)
-	nvmSymlink := resolveNVMSymlink()
+	nvmSymlink := resolveNVMSymlink(nvmPath)
 	_ = os.Setenv("NVM_HOME", nvmHome)
 	if nvmSymlink != "" {
 		_ = os.Setenv("NVM_SYMLINK", nvmSymlink)
@@ -154,8 +158,17 @@ func refreshNVMEnvironment(nvmPath string) {
 	_ = os.Setenv("PATH", strings.Join(nonEmpty(pathParts), string(os.PathListSeparator)))
 }
 
-func ensureNVMSymlinkAvailable() error {
-	return validateNVMSymlink(resolveNVMSymlink())
+func checkNVMEnvironment(ctx context.Context, run runner.Runner, nvmPath string) (Environment, error) {
+	nvmSymlink := resolveNVMSymlink(nvmPath)
+	if nvmSymlink == "" {
+		return Environment{}, errors.New("NVM_SYMLINK could not be resolved")
+	}
+	return checkEnvironmentExecutables(
+		ctx,
+		run,
+		filepath.Join(nvmSymlink, "node.exe"),
+		filepath.Join(nvmSymlink, "npm.cmd"),
+	)
 }
 
 func validateNVMSymlink(symlink string) error {
@@ -186,13 +199,34 @@ func validateNVMSymlink(symlink string) error {
 	)
 }
 
-func resolveNVMSymlink() string {
+func resolveNVMSymlink(nvmPath string) string {
 	return firstNonEmpty(
+		readNVMSettingsPath(nvmPath),
 		os.Getenv("NVM_SYMLINK"),
 		readWindowsEnvironment(registry.CURRENT_USER, `Environment`, "NVM_SYMLINK"),
 		readWindowsEnvironment(registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Control\Session Manager\Environment`, "NVM_SYMLINK"),
 		filepath.Join(os.Getenv("ProgramFiles"), "nodejs"),
 	)
+}
+
+func readNVMSettingsPath(nvmPath string) string {
+	if strings.TrimSpace(nvmPath) == "" {
+		return ""
+	}
+	content, err := os.ReadFile(filepath.Join(filepath.Dir(nvmPath), "settings.txt"))
+	if err != nil || len(content) > 64<<10 {
+		return ""
+	}
+	for _, line := range strings.Split(string(content), "\n") {
+		key, value, found := strings.Cut(strings.TrimSpace(line), ":")
+		if found && strings.EqualFold(strings.TrimSpace(key), "path") {
+			value = strings.TrimSpace(value)
+			if value != "" {
+				return filepath.Clean(value)
+			}
+		}
+	}
+	return ""
 }
 
 func readWindowsEnvironment(root registry.Key, path, name string) string {
