@@ -3,6 +3,7 @@
 package dsh
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -50,7 +51,22 @@ func processAlive(pid int) bool {
 }
 
 func samePath(a, b string) bool {
-	left, err1 := filepath.Abs(a)
-	right, err2 := filepath.Abs(b)
+	left, err1 := canonicalWindowsPath(a)
+	right, err2 := canonicalWindowsPath(b)
 	return err1 == nil && err2 == nil && strings.EqualFold(left, right)
+}
+
+func canonicalWindowsPath(path string) (string, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(absolute)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return filepath.Clean(absolute), nil
+		}
+		return "", err
+	}
+	return filepath.Clean(resolved), nil
 }
