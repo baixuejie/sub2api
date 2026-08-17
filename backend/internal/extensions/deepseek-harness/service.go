@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	defaultHelperReleaseBaseURL = "https://github.com/baixuejie/sub2api/releases/download/dsh-helper-v0.1.1"
+	defaultHelperReleaseBaseURL = "https://github.com/baixuejie/sub2api/releases/download/dsh-helper-v0.1.2"
 	defaultHelperReleasesPage   = "https://github.com/baixuejie/sub2api/releases"
 )
 

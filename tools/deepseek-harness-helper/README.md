@@ -1,6 +1,6 @@
 # Sub2API Local Tools Helper
 
-独立的跨平台 Go Helper，用于处理 Sub2API 发起的 `sub2api-harness://bootstrap` 本地工具任务。源码目录、二进制名、协议名和已有配置目录暂时保留 `deepseek-harness` 历史名称以兼容旧版本；任务执行核心已按白名单 adapter 支持多工具扩展。Windows 上如果 Node.js/npm 缺失或 Node.js 低于 `22.19.0`，Helper 会通过 winget 的 `CoreyButler.NVMforWindows` 官方清单安装或更新到最新版 NVM for Windows，再依次执行 `nvm install lts` 和 `nvm use lts`。Linux 与 macOS 仍需预先安装满足版本要求的 Node.js 和 npm。
+独立的跨平台 Go Helper，用于处理 Sub2API 发起的 `sub2api-harness://bootstrap` 本地工具任务。源码目录、二进制名、协议名和已有配置目录暂时保留 `deepseek-harness` 历史名称以兼容旧版本；任务执行核心已按白名单 adapter 支持多工具扩展。Windows 上如果 Node.js/npm 缺失或 Node.js 低于 `22.19.0`，Helper 会优先复用现有 NVM for Windows；未安装 NVM 时才通过 winget 的 `CoreyButler.NVMforWindows` 官方清单安装，然后依次执行 `nvm install lts` 和 `nvm use lts`。Linux 与 macOS 仍需预先安装满足版本要求的 Node.js 和 npm。
 
 ## 行为
 
@@ -138,7 +138,7 @@ deepseek-harness-helper --version
 
 ## 安全和限制
 
-- Windows 上 Node 缺失、npm 缺失或 Node 低于 `22.19.0` 时，Helper 固定调用 winget 官方清单安装或更新 NVM for Windows，并在当前终端直连执行 `nvm install lts`、`nvm use lts`。浏览器协议启动时会绑定已有 Windows Console；若当前进程没有 Console 则创建可见窗口，并把 `CONIN$`、`CONOUT$` 作为真实终端句柄传给 NVM，避免出现“NVM for Windows should be run from a terminal”弹窗。命令及 npm 安装输出会直接显示在该窗口。winget 与 NVM for Windows 均为原生可执行程序，Helper 不运行 `npx.ps1`，因此不会修改用户或系统的 PowerShell ExecutionPolicy。切换前会检查 `NVM_SYMLINK`；若目标是旧 Node 安装留下的物理目录则停止并提示用户先卸载，不会自动删除。Linux 与 macOS 不自动修改 Node 环境。
+- Windows 上 Node 缺失、npm 缺失或 Node 低于 `22.19.0` 时，Helper 优先复用现有 NVM for Windows；仅在找不到 `nvm.exe` 时调用 winget 官方清单安装 NVM，并在当前终端直连执行 `nvm install lts`、`nvm use lts`。浏览器协议启动时会绑定已有 Windows Console；若当前进程没有 Console 则创建可见窗口，并把 `CONIN$`、`CONOUT$` 作为真实终端句柄传给 NVM，避免出现“NVM for Windows should be run from a terminal”弹窗。命令及 npm 安装输出会直接显示在该窗口。winget 与 NVM for Windows 均为原生可执行程序，Helper 不运行 `npx.ps1`，因此不会修改用户或系统的 PowerShell ExecutionPolicy。切换前会检查 `NVM_SYMLINK`；若目标是旧 Node 安装留下的物理目录则停止并提示用户先卸载，不会自动删除。Linux 与 macOS 不自动修改 Node 环境。
 - DSH 安装使用固定版本的官方 npm 包 `@deepseek-ai/dsh@0.1.0-rc.6`，安装过程等价于运行该官方 CLI，但不使用无版本号的 `npx` 动态解析最新版。启动健康检查通过后，Helper 会自动使用系统默认浏览器打开 DeepSeek Harness WebUI。
 - 未经本机用户确认的 origin 与 Extension 组合不会收到任何网络请求。确认框显示精确 origin 和工具标识；只应批准自己信任的 Sub2API 站点及工具。
 - Exchange 不携带长期认证；ticket 应由服务端保持短时、单次使用。API key 只写入私有 credentials 文件，不进入命令参数或 Helper 日志。

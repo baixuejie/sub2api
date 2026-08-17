@@ -3,7 +3,9 @@
 package dsh
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -57,6 +59,34 @@ func TestNVMWingetInstallUsesOfficialPackage(t *testing.T) {
 	}
 	if got := nvmWingetInstallArgs(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("nvmWingetInstallArgs() = %#v, want %#v", got, want)
+	}
+}
+
+func TestEnsureNVMUsesExistingInstallationWithoutWinget(t *testing.T) {
+	t.Parallel()
+	run := &terminalRecordingRunner{}
+	var output bytes.Buffer
+	want := `C:\nvm\nvm.exe`
+
+	got, err := ensureNVM(
+		context.Background(),
+		run,
+		&output,
+		io.Discard,
+		errors.New("Node.js is not installed"),
+		func() (string, error) { return want, nil },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("ensureNVM() = %q, want %q", got, want)
+	}
+	if run.normalCalls != 0 || run.terminalCalls != 0 {
+		t.Fatalf("runner calls = normal %d, terminal %d; want none", run.normalCalls, run.terminalCalls)
+	}
+	if !strings.Contains(output.String(), "already installed") {
+		t.Fatalf("ensureNVM() output = %q", output.String())
 	}
 }
 

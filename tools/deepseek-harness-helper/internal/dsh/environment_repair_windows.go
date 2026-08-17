@@ -26,20 +26,9 @@ func repairEnvironment(ctx context.Context, run runner.Runner, stdout, stderr io
 	if err := ensureNVMSymlinkAvailable(); err != nil {
 		return Environment{}, err
 	}
-	if stdout != nil {
-		_, _ = fmt.Fprintln(stdout, "Node.js repair will install or update the official NVM for Windows package.")
-		_, _ = fmt.Fprintln(stdout, "Windows may request elevation, and NVM will switch the active system Node.js version.")
-	}
-	wingetPath, err := exec.LookPath("winget.exe")
+	nvmPath, err := ensureNVM(ctx, run, stdout, stderr, cause, findNVM)
 	if err != nil {
-		return Environment{}, fmt.Errorf("repair Node.js after %v: winget is required to install or update NVM for Windows", cause)
-	}
-	if _, err := run.Run(ctx, wingetPath, nvmWingetInstallArgs(), "", stdout, stderr); err != nil {
-		return Environment{}, fmt.Errorf("install or update latest NVM for Windows: %w", err)
-	}
-	nvmPath, err := findNVM()
-	if err != nil {
-		return Environment{}, errors.New("NVM for Windows installation or update completed but nvm.exe was not found; reopen Windows and retry")
+		return Environment{}, err
 	}
 	refreshNVMEnvironment(nvmPath)
 
@@ -61,6 +50,38 @@ func repairEnvironment(ctx context.Context, run runner.Runner, stdout, stderr io
 		return Environment{}, fmt.Errorf("verify Node.js after nvm use lts: %w", err)
 	}
 	return environment, nil
+}
+
+func ensureNVM(
+	ctx context.Context,
+	run runner.Runner,
+	stdout, stderr io.Writer,
+	cause error,
+	finder func() (string, error),
+) (string, error) {
+	if nvmPath, err := finder(); err == nil {
+		if stdout != nil {
+			_, _ = fmt.Fprintln(stdout, "NVM for Windows is already installed; continuing with the existing installation.")
+		}
+		return nvmPath, nil
+	}
+
+	if stdout != nil {
+		_, _ = fmt.Fprintln(stdout, "Node.js repair will install the official NVM for Windows package.")
+		_, _ = fmt.Fprintln(stdout, "Windows may request elevation, and NVM will switch the active system Node.js version.")
+	}
+	wingetPath, err := exec.LookPath("winget.exe")
+	if err != nil {
+		return "", fmt.Errorf("repair Node.js after %v: winget is required to install NVM for Windows", cause)
+	}
+	if _, err := run.Run(ctx, wingetPath, nvmWingetInstallArgs(), "", stdout, stderr); err != nil {
+		return "", fmt.Errorf("install latest NVM for Windows: %w", err)
+	}
+	nvmPath, err := finder()
+	if err != nil {
+		return "", errors.New("NVM for Windows installation completed but nvm.exe was not found; reopen Windows and retry")
+	}
+	return nvmPath, nil
 }
 
 func nvmWingetInstallArgs() []string {
