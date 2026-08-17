@@ -13,6 +13,7 @@ export function safeLaunchURI(raw: string | undefined): string {
     if (
       parsed.protocol !== 'sub2api-harness:' ||
       parsed.hostname !== 'bootstrap' ||
+      parsed.port !== '' ||
       (parsed.pathname !== '' && parsed.pathname !== '/') ||
       parsed.username ||
       parsed.password ||

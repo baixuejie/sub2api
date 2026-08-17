@@ -25,6 +25,7 @@ describe('DeepSeek Harness URL policy', () => {
     for (const unsafe of [
       'javascript:alert(1)',
       'sub2api-harness://other?server=https%3A%2F%2Fapi.example.com&ticket=abc&operation_id=one',
+      'sub2api-harness://bootstrap:63118?server=https%3A%2F%2Fapi.example.com&ticket=abc&operation_id=one',
       'sub2api-harness://bootstrap?server=http%3A%2F%2Fevil.example.com&ticket=abc&operation_id=one',
       'sub2api-harness://bootstrap?server=https%3A%2F%2Fapi.example.com&ticket=a%2Fb&operation_id=one',
       'sub2api-harness://bootstrap?server=https%3A%2F%2Fapi.example.com&ticket=abc&operation_id=one&extra=value',
