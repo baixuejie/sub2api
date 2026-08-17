@@ -28,7 +28,7 @@ llm-pi-ai:
 	if err := os.WriteFile(file, []byte(original), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	provider := ProviderConfig{Route: "sub2api-openai", DisplayName: "Sub2API", Protocol: "openai-responses", BaseURL: "https://example.com/v1", CredentialName: "SUB2API_API_KEY", ModelID: "model", ModelName: "Model", ContextWindow: 128000, MaxTokens: 8192}
+	provider := ProviderConfig{Route: "sub2api-openai", DisplayName: "Sub2API", Protocol: "openai-responses", BaseURL: "https://example.com", CredentialName: "SUB2API_API_KEY", ModelID: "model", ModelName: "Model", ContextWindow: 128000, MaxTokens: 8192}
 	if err := MergeSettings(file, provider); err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ llm-pi-ai:
 		t.Fatal("user provider sharing the prefix was removed")
 	}
 	added := providers["sub2api-openai"].(map[string]any)
-	if added["apiKeyEnv"] != "SUB2API_API_KEY" || added["baseURL"] != "https://example.com/v1" {
+	if added["apiKeyEnv"] != "SUB2API_API_KEY" || added["baseURL"] != "https://example.com" {
 		t.Fatalf("unexpected provider: %#v", added)
 	}
 	selection := parsed["agent-default-model"].(map[string]any)
@@ -134,7 +134,7 @@ func TestMergeSettingsRejectsReservedCredentialConflict(t *testing.T) {
 	if err := os.WriteFile(file, []byte(original), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	provider := ProviderConfig{Route: "sub2api-openai", DisplayName: "Sub2API", Protocol: "openai-responses", BaseURL: "https://example.com/v1", CredentialName: "SUB2API_API_KEY", ModelID: "model", ModelName: "Model", ContextWindow: 128000, MaxTokens: 8192}
+	provider := ProviderConfig{Route: "sub2api-openai", DisplayName: "Sub2API", Protocol: "openai-responses", BaseURL: "https://example.com", CredentialName: "SUB2API_API_KEY", ModelID: "model", ModelName: "Model", ContextWindow: 128000, MaxTokens: 8192}
 	if err := MergeSettings(file, provider); err == nil {
 		t.Fatal("expected reserved credential conflict")
 	}
@@ -147,7 +147,7 @@ func TestMergeSettingsRejectsNonMappingTargetNamespaceWithoutChangingFile(t *tes
 	if err := os.WriteFile(file, []byte(original), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	provider := ProviderConfig{Route: "sub2api-openai", DisplayName: "Sub2API", Protocol: "openai-responses", BaseURL: "https://example.com/v1", CredentialName: "SUB2API_API_KEY", ModelID: "model", ModelName: "Model", ContextWindow: 128000, MaxTokens: 8192}
+	provider := ProviderConfig{Route: "sub2api-openai", DisplayName: "Sub2API", Protocol: "openai-responses", BaseURL: "https://example.com", CredentialName: "SUB2API_API_KEY", ModelID: "model", ModelName: "Model", ContextWindow: 128000, MaxTokens: 8192}
 	if err := MergeSettings(file, provider); err == nil {
 		t.Fatal("expected target namespace rejection")
 	}

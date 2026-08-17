@@ -75,7 +75,7 @@ func TestClientExchangeAndReport(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(Envelope[Task]{Data: Task{
 			OperationID: "op", EventToken: "event", StatusURL: server.URL + "/api/v1/test-tools/sessions/op/events",
 			DSHVersion: "0.1.0-rc.6", APIKey: "secret",
-			Provider: Provider{Route: "sub2api-openai", DisplayName: "Sub2API", Protocol: "openai-responses", BaseURL: "https://api.example/v1", CredentialName: "SUB2API_API_KEY", Model: Model{ID: "m", Name: "M", ContextWindow: 128000, MaxTokens: 8192}},
+			Provider: Provider{Route: "sub2api-openai", DisplayName: "Sub2API", Protocol: "openai-responses", BaseURL: "https://api.example", CredentialName: "SUB2API_API_KEY", Model: Model{ID: "m", Name: "M", ContextWindow: 128000, MaxTokens: 8192}},
 		}})
 	})
 	mux.HandleFunc("/api/v1/test-tools/sessions/op/events", func(w http.ResponseWriter, r *http.Request) {

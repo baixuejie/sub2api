@@ -251,6 +251,6 @@ func healthyLoopback(ctx context.Context, raw string) bool {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return false
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
-	return err == nil && strings.Contains(string(body), "<title>DeepSeek Harness</title>")
+	_, err = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
+	return err == nil
 }

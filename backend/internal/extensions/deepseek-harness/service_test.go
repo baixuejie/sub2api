@@ -170,7 +170,7 @@ func TestDeepSeekHarnessProfileUsesCurrentKeyGroupPolicy(t *testing.T) {
 
 	result, err := service.Profile(context.Background(), 7, 42, "")
 	require.NoError(t, err)
-	require.Equal(t, "https://api.example.com/v1", result.Profile.BaseURL)
+	require.Equal(t, "https://api.example.com", result.Profile.BaseURL)
 	require.Equal(t, "openai-responses", result.Profile.Protocol)
 	require.Equal(t, "gpt-5.6-sol", result.Profile.DefaultModel)
 	require.Equal(t, "gpt-5.6-sol", result.Profile.SelectedModel)

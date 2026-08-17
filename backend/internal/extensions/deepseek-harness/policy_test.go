@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDeepSeekHarnessNormalizeSiteURLsAppendsV1ExactlyOnce(t *testing.T) {
+func TestDeepSeekHarnessNormalizeSiteURLsUsesSiteRoot(t *testing.T) {
 	tests := []struct {
 		name     string
 		base     string
@@ -15,9 +15,9 @@ func TestDeepSeekHarnessNormalizeSiteURLsAppendsV1ExactlyOnce(t *testing.T) {
 		wantBase string
 		wantSite string
 	}{
-		{name: "append", base: "https://example.com/", wantBase: "https://example.com/v1", wantSite: "https://example.com"},
-		{name: "existing", base: "https://example.com/v1/", wantBase: "https://example.com/v1", wantSite: "https://example.com"},
-		{name: "fallback", fallback: "http://127.0.0.1:8080", wantBase: "http://127.0.0.1:8080/v1", wantSite: "http://127.0.0.1:8080"},
+		{name: "root", base: "https://example.com/", wantBase: "https://example.com", wantSite: "https://example.com"},
+		{name: "legacy-v1", base: "https://example.com/v1/", wantBase: "https://example.com", wantSite: "https://example.com"},
+		{name: "fallback", fallback: "http://127.0.0.1:8080", wantBase: "http://127.0.0.1:8080", wantSite: "http://127.0.0.1:8080"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -222,7 +222,7 @@ func normalizeSiteURLs(rawBaseURL, fallbackOrigin string) (string, string, error
 	if normalizedPath != "" && normalizedPath != "/v1" {
 		return "", "", errInvalidBaseURL
 	}
-	parsed.Path = "/v1"
+	parsed.Path = ""
 	parsed.RawPath = ""
 	baseURL := strings.TrimRight(parsed.String(), "/")
 	serverURL := (&url.URL{Scheme: parsed.Scheme, Host: parsed.Host}).String()

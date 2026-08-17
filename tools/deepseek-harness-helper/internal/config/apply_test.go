@@ -20,7 +20,7 @@ func TestApplyWritesBothDocumentsWithoutPersistentLocks(t *testing.T) {
 	}
 	provider := ProviderConfig{
 		Route: "sub2api-openai", DisplayName: "Sub2API", Protocol: "openai-responses",
-		BaseURL: "https://example.com/v1", CredentialName: "SUB2API_API_KEY", ModelID: "gpt-5.6-sol",
+		BaseURL: "https://example.com", CredentialName: "SUB2API_API_KEY", ModelID: "gpt-5.6-sol",
 		ModelName: "gpt-5.6-sol", ContextWindow: 128000, MaxTokens: 8192,
 	}
 	if err := Apply(paths, provider, "secret-value"); err != nil {
@@ -53,7 +53,7 @@ func TestApplyRejectsInvalidInputBeforeChangingDocuments(t *testing.T) {
 	}
 	provider := ProviderConfig{
 		Route: "sub2api-openai", DisplayName: "Sub2API", Protocol: "openai-responses",
-		BaseURL: "https://example.com/v1", CredentialName: "SUB2API_API_KEY", ModelID: "gpt-5.6-sol",
+		BaseURL: "https://example.com", CredentialName: "SUB2API_API_KEY", ModelID: "gpt-5.6-sol",
 		ModelName: "gpt-5.6-sol", ContextWindow: 128000, MaxTokens: 8192,
 	}
 	if err := Apply(paths, provider, ""); err == nil {

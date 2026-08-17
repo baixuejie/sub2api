@@ -41,8 +41,8 @@ func (DeepSeekHarnessAdapter) Validate(task Task) error {
 		return errors.New("exchange returned invalid provider limits")
 	}
 	base, err := url.Parse(p.BaseURL)
-	if err != nil || base.Host == "" || base.User != nil || base.RawQuery != "" || base.Fragment != "" || base.EscapedPath() != "/v1" {
-		return errors.New("provider base_url must end at /v1")
+	if err != nil || base.Host == "" || base.User != nil || base.RawQuery != "" || base.Fragment != "" || (base.EscapedPath() != "" && base.EscapedPath() != "/") {
+		return errors.New("provider base_url must be the site root")
 	}
 	if base.Scheme != "https" && (base.Scheme != "http" || !isLoopbackHost(strings.TrimSuffix(strings.ToLower(base.Hostname()), "."))) {
 		return errors.New("provider base_url must use HTTPS or localhost HTTP")
@@ -87,14 +87,11 @@ func (DeepSeekHarnessAdapter) Execute(ctx context.Context, execution AdapterExec
 			ModelID: payload.Provider.Model.ID, ModelName: payload.Provider.Model.Name,
 			ContextWindow: payload.Provider.Model.ContextWindow, MaxTokens: payload.Provider.Model.MaxTokens,
 		}
-		if err := execution.Report(StatusEvent{Status: StatusStarting, Stage: StatusStarting, Message: "Starting DeepSeek Harness", Progress: 80}); err != nil {
-			return &workflowReportError{cause: err}
-		}
-		if err := dsh.StopManaged(ctx, environment, execution.Paths, dshBin, execution.Task.ToolVersion); err != nil {
-			return &workflowStageError{code: "dsh_stop_failed", cause: err}
-		}
 		if err := config.Apply(execution.Paths, provider, payload.APIKey); err != nil {
 			return &workflowStageError{code: "configuration_failed", cause: err}
+		}
+		if err := execution.Report(StatusEvent{Status: StatusStarting, Stage: StatusStarting, Message: "Starting or reusing DeepSeek Harness", Progress: 80}); err != nil {
+			return &workflowReportError{cause: err}
 		}
 		started, err := dsh.StartOrReuse(ctx, environment, execution.Paths, dshBin, execution.Task.ToolVersion, execution.Task.OperationID)
 		if err != nil {

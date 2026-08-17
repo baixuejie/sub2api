@@ -34,7 +34,7 @@ func TestPinnedDSHLoadsGeneratedConfiguration(t *testing.T) {
 		Route:          "sub2api-openai",
 		DisplayName:    "Sub2API OpenAI",
 		Protocol:       "openai-responses",
-		BaseURL:        "https://api.example.com/v1",
+		BaseURL:        "https://api.example.com",
 		CredentialName: "SUB2API_API_KEY",
 		ModelID:        "gpt-5.6-sol",
 		ModelName:      "GPT-5.6 Sol",

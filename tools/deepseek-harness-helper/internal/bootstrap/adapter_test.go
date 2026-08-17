@@ -260,7 +260,7 @@ func validVersionedTask() Task {
 func validProvider() Provider {
 	return Provider{
 		Route: "sub2api-openai", DisplayName: "Sub2API", Protocol: "openai-responses",
-		BaseURL: "https://api.example/v1", CredentialName: "SUB2API_API_KEY",
+		BaseURL: "https://api.example", CredentialName: "SUB2API_API_KEY",
 		Model: Model{ID: "model", Name: "Model", ContextWindow: 128000, MaxTokens: 8192},
 	}
 }
