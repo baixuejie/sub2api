@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import type { PublicSettings } from '@/types'
+import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const read = (path: string) => readFileSync(resolve(here, path), 'utf8')
@@ -16,10 +18,26 @@ describe('DeepSeek Harness extension integration surface', () => {
     expect(keysView).toContain(
       "import DeepSeekHarnessAction from '@/features/deepseek-harness/components/DeepSeekHarnessAction.vue'"
     )
-    expect(keysView).toContain('v-if="publicSettings?.deepseek_harness_enabled === true"')
+    expect(keysView).toContain('v-if="deepSeekHarnessEnabled"')
+    expect(keysView).toContain('resolveFeatureFlag(FeatureFlags.deepSeekHarness, publicSettings.value)')
+    expect(keysView).toContain('class="flex flex-wrap items-center gap-1"')
     expect(ccsPosition).toBeGreaterThan(-1)
     expect(harnessPosition).toBeGreaterThan(ccsPosition)
     expect(togglePosition).toBeGreaterThan(harnessPosition)
+  })
+
+  it('registers the public setting as a fail-closed opt-in feature flag', () => {
+    const registry = read('../../../utils/featureFlags.ts')
+
+    expect(registry).toContain('deepSeekHarness: defineFlag({')
+    expect(registry).toContain("key: 'deepseek_harness_enabled'")
+    expect(registry).toContain("mode: 'opt-in'")
+    expect(resolveFeatureFlag(FeatureFlags.deepSeekHarness, undefined)).toBe(false)
+    expect(
+      resolveFeatureFlag(FeatureFlags.deepSeekHarness, {
+        deepseek_harness_enabled: true
+      } as PublicSettings)
+    ).toBe(true)
   })
 
   it('never accepts a raw API key as a component prop or session request field', () => {

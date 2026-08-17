@@ -389,7 +389,7 @@
                 <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>
               </button>
               <DeepSeekHarnessAction
-                v-if="publicSettings?.deepseek_harness_enabled === true"
+                v-if="deepSeekHarnessEnabled"
                 :api-key-id="row.id"
                 :status="row.status"
               />
@@ -1151,6 +1151,7 @@ import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
 import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
+import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 import {
   buildCcSwitchImportDeeplink,
   type CcSwitchClientType
@@ -1313,6 +1314,9 @@ const selectedKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
+const deepSeekHarnessEnabled = computed(() =>
+  resolveFeatureFlag(FeatureFlags.deepSeekHarness, publicSettings.value)
+)
 const dropdownRef = ref<HTMLElement | null>(null)
 const columnDropdownRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
