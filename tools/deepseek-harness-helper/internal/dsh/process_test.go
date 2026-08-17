@@ -13,6 +13,32 @@ import (
 	"github.com/Wei-Shaw/sub2api/tools/deepseek-harness-helper/internal/config"
 )
 
+func TestChildEnvironmentRemovesManagedCredentialShadow(t *testing.T) {
+	t.Setenv("SUB2API_API_KEY", "shadowed-value")
+	t.Setenv("DSH_HOME", "old-home")
+
+	environment := childEnvironment("private-home")
+	homeCount := 0
+	for _, entry := range environment {
+		name, value, found := strings.Cut(entry, "=")
+		if !found {
+			continue
+		}
+		if strings.EqualFold(name, "SUB2API_API_KEY") {
+			t.Fatal("managed credential leaked into DSH child environment")
+		}
+		if strings.EqualFold(name, "DSH_HOME") {
+			homeCount++
+			if value != "private-home" {
+				t.Fatalf("DSH_HOME = %q", value)
+			}
+		}
+	}
+	if homeCount != 1 {
+		t.Fatalf("DSH_HOME entries = %d, want 1", homeCount)
+	}
+}
+
 func TestStopManagedRejectsMismatchedRuntimeWithoutKillingProcess(t *testing.T) {
 	t.Parallel()
 	paths := config.PathsFor(t.TempDir())

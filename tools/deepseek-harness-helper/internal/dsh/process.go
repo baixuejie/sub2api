@@ -117,7 +117,7 @@ func StartOrReuse(ctx context.Context, env Environment, paths config.Paths, dshB
 	args := []string{dshBin, "--profile", "web", "--host", "127.0.0.1", "--port", "0"}
 	cmd := exec.Command(env.NodePath, args...)
 	cmd.Dir = paths.DataDir
-	cmd.Env = append(os.Environ(), "DSH_HOME="+paths.DSHHome)
+	cmd.Env = childEnvironment(paths.DSHHome)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	configureProcess(cmd)
@@ -211,6 +211,18 @@ func announcedURLSince(filename string, offset int64) (string, error) {
 		return "", nil
 	}
 	return string(matches[1]), nil
+}
+
+func childEnvironment(dshHome string) []string {
+	environment := make([]string, 0, len(os.Environ())+1)
+	for _, entry := range os.Environ() {
+		name, _, found := strings.Cut(entry, "=")
+		if found && (strings.EqualFold(name, "DSH_HOME") || strings.EqualFold(name, "SUB2API_API_KEY")) {
+			continue
+		}
+		environment = append(environment, entry)
+	}
+	return append(environment, "DSH_HOME="+dshHome)
 }
 
 func healthyLoopback(ctx context.Context, raw string) bool {

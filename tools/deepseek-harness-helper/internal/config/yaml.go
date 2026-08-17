@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -113,7 +115,46 @@ func readDocument(filename string) (*yaml.Node, error) {
 	if len(root.Content) != 1 || root.Content[0].Kind != yaml.MappingNode {
 		return nil, errors.New("YAML document root must be a mapping")
 	}
+	var trailing yaml.Node
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return nil, errors.New("YAML file must contain exactly one document")
+	}
+	if err := validateUniqueMappingKeys(root.Content[0]); err != nil {
+		return nil, err
+	}
 	return root, nil
+}
+
+func validateUniqueMappingKeys(node *yaml.Node) error {
+	if node == nil {
+		return nil
+	}
+	if node.Kind == yaml.MappingNode {
+		if len(node.Content)%2 != 0 {
+			return errors.New("YAML mapping has an incomplete key/value pair")
+		}
+		seen := make(map[string]struct{}, len(node.Content)/2)
+		for i := 0; i < len(node.Content); i += 2 {
+			key := node.Content[i]
+			if key.Kind != yaml.ScalarNode || strings.TrimSpace(key.Value) == "" {
+				return errors.New("YAML mapping keys must be non-empty scalars")
+			}
+			if _, exists := seen[key.Value]; exists {
+				return fmt.Errorf("duplicate YAML mapping key %q", key.Value)
+			}
+			seen[key.Value] = struct{}{}
+			if err := validateUniqueMappingKeys(node.Content[i+1]); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	for _, child := range node.Content {
+		if err := validateUniqueMappingKeys(child); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func documentMapping(root *yaml.Node) *yaml.Node {

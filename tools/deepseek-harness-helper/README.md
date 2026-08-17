@@ -25,7 +25,7 @@
    不通过 shell 执行，`dsh_version` 只接受固定版本 `0.1.0-rc.6`。
 6. 在私有 `DSH_HOME` 串行更新：
    - `settings.yaml`: 仅清理 Helper 明确定义的六个受管 route 及 legacy `sub2api`，保留其他同前缀用户 provider，再写入当前 `llm-pi-ai.providers[route]` 和 `agent-default-model`
-   - `.credentials.yaml`: 固定写入 `SUB2API_API_KEY: api_key`
+   - `.credentials.yaml`: 固定写入 `SUB2API_API_KEY: api_key`；启动 DSH 时移除父进程中同名环境变量，避免环境优先级覆盖本次当前 Key
    - 非 Sub2API provider 已占用该凭据名时拒绝覆盖
    - 两个文件使用与 DSH rc.6 相同的 `<文件>.lock` 写锁和原子替换，覆盖前更新 `.bak`；配置成功后不做整文件反向覆盖，后续状态上报失败只记录警告，避免覆盖用户或 DSH 的新修改
 7. 仅启动或复用 Helper 自己记录的 DSH 进程：

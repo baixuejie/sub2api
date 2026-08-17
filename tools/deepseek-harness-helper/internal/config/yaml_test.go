@@ -95,6 +95,38 @@ func TestMergeCredential(t *testing.T) {
 	}
 }
 
+func TestMergeCredentialRejectsDuplicateKeysWithoutChangingFile(t *testing.T) {
+	t.Parallel()
+	file := filepath.Join(t.TempDir(), ".credentials.yaml")
+	original := "SUB2API_API_KEY: first\nSUB2API_API_KEY: second\n"
+	if err := os.WriteFile(file, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := MergeCredential(file, "SUB2API_API_KEY", "replacement"); err == nil {
+		t.Fatal("expected duplicate credential rejection")
+	}
+	data, err := os.ReadFile(file)
+	if err != nil || string(data) != original {
+		t.Fatalf("duplicate credential file changed after rejection: %v", err)
+	}
+}
+
+func TestMergeCredentialRejectsMultipleDocuments(t *testing.T) {
+	t.Parallel()
+	file := filepath.Join(t.TempDir(), ".credentials.yaml")
+	original := "EXISTING_KEY: first\n---\nOTHER_KEY: second\n"
+	if err := os.WriteFile(file, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := MergeCredential(file, "SUB2API_API_KEY", "replacement"); err == nil {
+		t.Fatal("expected multiple document rejection")
+	}
+	data, err := os.ReadFile(file)
+	if err != nil || string(data) != original {
+		t.Fatalf("multiple-document credential file changed after rejection: %v", err)
+	}
+}
+
 func TestMergeSettingsRejectsReservedCredentialConflict(t *testing.T) {
 	t.Parallel()
 	file := filepath.Join(t.TempDir(), "settings.yaml")
