@@ -1,6 +1,7 @@
 import {
   BILLING_MODE_IMAGE,
   BILLING_MODE_PER_REQUEST,
+  BILLING_MODE_VIDEO,
   BILLING_MODE_TOKEN,
   type BillingMode
 } from '@/constants/channel'
@@ -125,7 +126,8 @@ export function sortModels(models: PlazaModel[]): PlazaModel[] {
   const modeOrder: Record<BillingMode, number> = {
     [BILLING_MODE_TOKEN]: 0,
     [BILLING_MODE_PER_REQUEST]: 1,
-    [BILLING_MODE_IMAGE]: 2
+    [BILLING_MODE_IMAGE]: 2,
+    [BILLING_MODE_VIDEO]: 3
   }
   return [...models].sort((left, right) => {
     const modeDifference = modeOrder[modelBillingMode(left)] - modeOrder[modelBillingMode(right)]

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { BILLING_MODE_IMAGE, BILLING_MODE_TOKEN } from '@/constants/channel'
+import {
+  BILLING_MODE_IMAGE,
+  BILLING_MODE_PER_REQUEST,
+  BILLING_MODE_TOKEN,
+  BILLING_MODE_VIDEO
+} from '@/constants/channel'
 import type { ModelPlazaGroup, PlazaModel } from '../types/modelPlaza'
 import {
   collectPlazaStats,
@@ -9,6 +14,7 @@ import {
   officialTokenPrice,
   paidRequestPrice,
   paidTokenPrice,
+  sortModels,
   tierLabel
 } from '../utils/modelPlaza'
 
@@ -105,6 +111,22 @@ describe('model plaza extension view model', () => {
     const groups = [group(), group({ id: 2, name: 'OpenAI 专属组' })]
 
     expect(collectPlazaStats(groups)).toEqual({ groups: 2, models: 2, platforms: 1 })
+  })
+
+  it('sorts every billing mode, including video', () => {
+    const models = [
+      model('video', BILLING_MODE_VIDEO),
+      model('image', BILLING_MODE_IMAGE),
+      model('request', BILLING_MODE_PER_REQUEST),
+      model('token')
+    ]
+
+    expect(sortModels(models).map((item) => item.name)).toEqual([
+      'token',
+      'request',
+      'image',
+      'video'
+    ])
   })
 
   it('formats configured and generated tier labels', () => {
