@@ -223,6 +223,7 @@ export default {
       empty: 'No video tutorials are available yet.',
       error: 'Unable to load video tutorials. Please try again later.',
       open: 'Open tutorial: {title}',
+      playCount: 'Views: {count}',
     },
   },
 

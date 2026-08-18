@@ -223,6 +223,7 @@ export default {
       empty: '暂无可用的视频教程。',
       error: '视频教程加载失败，请稍后重试。',
       open: '打开教程：{title}',
+      playCount: '播放量：{count}',
     },
   },
 

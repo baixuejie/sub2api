@@ -122,6 +122,7 @@
                 :href="safeVideoUrl(video.video_url)"
                 target="_blank"
                 rel="noopener noreferrer"
+                @click="handleVideoClick(video)"
                 class="group overflow-hidden rounded-lg border border-gray-200 bg-white transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-dark-700 dark:bg-dark-800"
                 :aria-label="t('tutorials.videos.open', { title: video.title })"
               >
@@ -143,7 +144,13 @@
                   </span>
                 </div>
                 <div class="flex items-center justify-between gap-3 px-4 py-3">
-                  <h3 class="min-w-0 truncate text-sm font-medium text-gray-900 dark:text-white">{{ video.title }}</h3>
+                  <div class="min-w-0 flex-1">
+                    <h3 class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ video.title }}</h3>
+                    <span class="mt-1 inline-flex items-center gap-1 text-xs text-gray-500 dark:text-dark-400">
+                      <Icon name="eye" size="xs" aria-hidden="true" />
+                      {{ t('tutorials.videos.playCount', { count: formatPlayCount(video.play_count) }) }}
+                    </span>
+                  </div>
                   <Icon name="externalLink" size="sm" class="flex-shrink-0 text-gray-400 dark:text-dark-400" aria-hidden="true" />
                 </div>
               </a>
@@ -156,22 +163,26 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useAppStore } from '@/stores/app'
 import { sanitizeUrl } from '@/utils/url'
-import { getPublicTutorialVideos, TUTORIAL_DOCUMENT_URL } from '../api/tutorials'
+import {
+  fetchPublicTutorialVideos,
+  getPublicTutorialVideos,
+  recordTutorialVideoPlay,
+  TUTORIAL_DOCUMENT_URL
+} from '../api/tutorials'
+import type { TutorialVideo } from '../types/tutorials'
 
 const { t } = useI18n()
 const appStore = useAppStore()
 const activePanel = ref<'documents' | 'videos'>('documents')
 const loading = ref(true)
 const loadError = ref(false)
-const videos = computed(() =>
-  getPublicTutorialVideos(appStore.cachedPublicSettings).filter((video) => Boolean(safeVideoUrl(video.video_url)))
-)
+const videos = ref<TutorialVideo[]>([])
 
 function safeVideoUrl(url: string): string {
   return sanitizeUrl(url)
@@ -179,6 +190,26 @@ function safeVideoUrl(url: string): string {
 
 function safeCoverUrl(url: string): string {
   return sanitizeUrl(url, { allowRelative: true, allowDataUrl: true })
+}
+
+function formatPlayCount(count: number | undefined): string {
+  const value = Number.isFinite(count) && (count ?? 0) >= 0 ? Math.trunc(count as number) : 0
+  return new Intl.NumberFormat().format(value)
+}
+
+function handleVideoClick(video: TutorialVideo): void {
+  // Update the card immediately while the request runs; the server remains authoritative.
+  video.play_count = Math.max(0, Math.trunc(video.play_count ?? 0) + 1)
+  void recordTutorialVideoPlay(video.id)
+    .then((playCount) => {
+      if (typeof playCount === 'number') {
+        video.play_count = Math.max(video.play_count ?? 0, playCount)
+      }
+    })
+    .catch(() => {
+      // Do not leave an optimistic count behind when the statistics request fails.
+      video.play_count = Math.max(0, Math.trunc(video.play_count ?? 1) - 1)
+    })
 }
 
 async function focusPanel(panel: 'documents' | 'videos'): Promise<void> {
@@ -191,12 +222,20 @@ async function loadSettings(): Promise<void> {
   loading.value = true
   loadError.value = false
   try {
-    const settings = await appStore.fetchPublicSettings()
-    if (!settings) {
+    const [settingsResult, videosResult] = await Promise.allSettled([
+      appStore.fetchPublicSettings(),
+      fetchPublicTutorialVideos()
+    ])
+
+    const settings = settingsResult.status === 'fulfilled' ? settingsResult.value : null
+    if (videosResult.status === 'fulfilled') {
+      videos.value = videosResult.value.filter((video) => Boolean(safeVideoUrl(video.video_url)))
+    } else if (!settings) {
       loadError.value = true
+    } else {
+      // Keep older servers usable while the public video endpoint is being deployed.
+      videos.value = getPublicTutorialVideos(settings).filter((video) => Boolean(safeVideoUrl(video.video_url)))
     }
-  } catch {
-    loadError.value = true
   } finally {
     loading.value = false
   }

@@ -5,4 +5,5 @@ export interface TutorialVideo {
   video_url: string
   visible?: boolean
   sort_order?: number
+  play_count?: number
 }
