@@ -47,7 +47,7 @@
 - `minimum_helper_version`: 执行任务所需的最低 Helper SemVer
 - `payload`: 工具私有数据，由对应 Adapter 使用严格 JSON schema 解码；通用 Client 不要求 API Key 或 Provider 字段
 
-四个字段必须同时存在。正式构建使用编译时注入的 Helper 版本进行 SemVer 比较；本地 `dev` 构建按代码声明的兼容版本 `0.1.1` 比较，不会被视为无限新版本。仅包含 `dsh_version`、未包含上述四个字段的旧任务仍按协议 `1`、工具 `deepseek-harness` 兼容执行；新旧版本字段同时存在时必须一致。
+四个字段必须同时存在。正式构建使用编译时注入的 Helper 版本进行 SemVer 比较；本地 `dev` 构建按代码声明的兼容版本 `0.1.6` 比较，不会被视为无限新版本。仅包含 `dsh_version`、未包含上述四个字段的旧任务仍按协议 `1`、工具 `deepseek-harness` 兼容执行；新旧版本字段同时存在时必须一致。
 
 任务只能通过 `tool_id` 选择 Helper 二进制内显式注册的 adapter，服务端不能下发 executable、命令参数或 shell 脚本。未知工具、未知协议、不支持的工具版本、无效版本号，以及高于当前 Helper 的 `minimum_helper_version` 都会在执行任何工具动作前被拒绝。
 
@@ -78,13 +78,13 @@ go vet ./...
 PowerShell 构建所有目标：
 
 ```powershell
-./scripts/build.ps1 -Version 0.1.1
+./scripts/build.ps1 -Version 0.1.6
 ```
 
 POSIX shell 构建：
 
 ```bash
-VERSION=0.1.1 ./scripts/build.sh
+VERSION=0.1.6 ./scripts/build.sh
 ```
 
 输出在 `dist/`：Windows amd64/arm64 自安装 `.exe`、Linux amd64/arm64 `.tar.gz`、macOS amd64/arm64 `deepseek-harness-helper-darwin-*.tar.gz`（包内为 `.app`），以及 `SHA256SUMS`。仓库工作流 `.github/workflows/deepseek-harness-helper-build.yml` 会先在 Windows runner 运行平台测试，再用 Node 22.19.0 和精确的 DSH rc.6 启动生成配置，并验证真实页面标记及 `llm.providers` RPC 中的受管 provider，然后只生成并保留未签名 CI artifact，不会直接发布；受保护的发布流水线完成 Windows 签名以及 macOS codesign/notarize 后，才能上传到 `dsh-helper-v*` Release。
