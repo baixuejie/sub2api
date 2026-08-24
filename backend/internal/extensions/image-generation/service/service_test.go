@@ -80,6 +80,42 @@ func TestImageGenerationServiceGetOptionsFiltersGroupsAndModels(t *testing.T) {
 	require.Equal(t, "auto", options.Defaults.Size)
 }
 
+func TestImageGenerationServiceGetOptionsFallsBackForLegacyImageGroup(t *testing.T) {
+	group := imageGroup(7, "legacy-images", true)
+	svc := NewService(
+		&fakeGroups{groups: []core.Group{group}},
+		&fakePlaza{groups: nil},
+		&fakeKeys{},
+	)
+
+	options, err := svc.GetOptions(context.Background(), 42)
+	require.NoError(t, err)
+	require.Len(t, options.Groups, 1)
+	require.Equal(t, int64(7), options.Groups[0].ID)
+	require.Equal(t, defaultImageModel, options.Groups[0].Models[0].Name)
+}
+
+func TestImageGenerationServiceGetOptionsSupplementsGroupImageModels(t *testing.T) {
+	group := imageGroup(8, "configured-images", true)
+	group.ModelsListConfig = core.GroupModelsListConfig{
+		Enabled: true,
+		Models:  []string{"gpt-4.1-mini", "gpt-image-1", "gpt-image-2"},
+	}
+	svc := NewService(
+		&fakeGroups{groups: []core.Group{group}},
+		&fakePlaza{groups: []core.PlazaGroup{imagePlazaGroup(8, "gpt-4.1-mini")}},
+		&fakeKeys{},
+	)
+
+	options, err := svc.GetOptions(context.Background(), 42)
+	require.NoError(t, err)
+	require.Len(t, options.Groups, 1)
+	require.Equal(t, []string{"gpt-image-1", "gpt-image-2"}, []string{
+		options.Groups[0].Models[0].Name,
+		options.Groups[0].Models[1].Name,
+	})
+}
+
 func TestImageGenerationServicePrepareRejectsUnauthorizedModelAndInvalidParameters(t *testing.T) {
 	key := &core.APIKey{
 		ID: 9, UserID: 42, Key: "sk-server-secret", GroupID: int64Ptr(1), Status: core.StatusAPIKeyActive,

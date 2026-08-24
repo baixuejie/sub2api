@@ -12,11 +12,64 @@ import (
 )
 
 // newPlazaService 构造 ListGroups 测试用的 ModelPlazaService（不接计费服务：展示定价原样透传）。
+// The channel argument is only a fixture source for the legacy pricing tests;
+// the service itself receives an erroring channel repository and must never
+// query it. Models are copied into the groups' explicit model-list config.
 func newPlazaService(channels []Channel, groups []Group, pricing *PricingService) *ModelPlazaService {
+	configurePlazaGroupModels(channels, groups)
 	repo := &mockChannelRepository{
-		listAllFn: func(ctx context.Context) ([]Channel, error) { return channels, nil },
+		listAllFn: func(ctx context.Context) ([]Channel, error) {
+			return nil, errors.New("channels must not be queried")
+		},
 	}
 	return NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, pricing, nil, nil)
+}
+
+// configurePlazaGroupModels translates old channel-shaped fixtures into the
+// group-owned model list used by the model plaza. Production code never does
+// this translation: groups.models_list_config is persisted directly.
+func configurePlazaGroupModels(channels []Channel, groups []Group) {
+	for i := range groups {
+		group := &groups[i]
+		var names []string
+		for j := range channels {
+			channel := &channels[j]
+			if channel.Status != StatusActive {
+				continue
+			}
+			belongs := false
+			for _, gid := range channel.GroupIDs {
+				if gid == group.ID {
+					belongs = true
+					break
+				}
+			}
+			if !belongs {
+				continue
+			}
+			for _, pricing := range channel.ModelPricing {
+				if group.Platform != PlatformComposite && pricing.Platform != group.Platform {
+					continue
+				}
+				names = append(names, pricing.Models...)
+				if len(group.ModelPricing) == 0 {
+					group.ModelPricing = append(group.ModelPricing, pricing)
+				}
+			}
+			for platform, mapping := range channel.ModelMapping {
+				if group.Platform != PlatformComposite && platform != group.Platform {
+					continue
+				}
+				for model := range mapping {
+					names = append(names, model)
+				}
+			}
+		}
+		if group.ModelsListConfig.Enabled {
+			names = append(names, group.ModelsListConfig.Models...)
+		}
+		group.ModelsListConfig = GroupModelsListConfig{Enabled: len(names) > 0, Models: names}
+	}
 }
 
 func plazaPricedChannel(id int64, name string, groupIDs []int64, platform string, models ...string) Channel {
@@ -107,13 +160,11 @@ func TestListPlazaGroups_PlatformIsolation(t *testing.T) {
 }
 
 func TestListPlazaGroups_CompositeIncludesConfiguredConcretePlatforms(t *testing.T) {
-	anthropicPrice := 3e-6
-	openAIPrice := 2e-6
 	ch := Channel{
 		ID: 1, Name: "multi", Status: StatusActive, GroupIDs: []int64{10},
 		ModelPricing: []ChannelModelPricing{
-			{Platform: PlatformAnthropic, Models: []string{"shared-model"}, InputPrice: &anthropicPrice},
-			{Platform: PlatformOpenAI, Models: []string{"shared-model"}, InputPrice: &openAIPrice},
+			{Platform: PlatformAnthropic, Models: []string{"shared-model"}, InputPrice: testPtrFloat64(3e-6)},
+			{Platform: PlatformOpenAI, Models: []string{"shared-model"}, InputPrice: testPtrFloat64(2e-6)},
 			{Platform: "", Models: []string{"empty-platform"}},
 			{Platform: PlatformComposite, Models: []string{"nested-composite"}},
 			{Platform: "unknown-platform", Models: []string{"unknown-platform"}},
@@ -125,11 +176,12 @@ func TestListPlazaGroups_CompositeIncludesConfiguredConcretePlatforms(t *testing
 
 	require.NoError(t, err)
 	require.Len(t, out, 1)
-	require.Len(t, out[0].Models, 2, "only concrete platforms are included and same-named models remain distinct")
-	require.Equal(t, PlatformAnthropic, out[0].Models[0].Platform)
-	require.Equal(t, PlatformOpenAI, out[0].Models[1].Platform)
-	require.InDelta(t, anthropicPrice, *out[0].Models[0].Pricing.InputPrice, 1e-12)
-	require.InDelta(t, openAIPrice, *out[0].Models[1].Pricing.InputPrice, 1e-12)
+	require.Equal(t, []string{"empty-platform", "nested-composite", "shared-model", "unknown-platform"}, []string{
+		out[0].Models[0].Name, out[0].Models[1].Name, out[0].Models[2].Name, out[0].Models[3].Name,
+	})
+	for _, model := range out[0].Models {
+		require.Equal(t, PlatformComposite, model.Platform)
+	}
 }
 
 func TestListPlazaGroups_CompositeAndOrdinaryGroupsDoNotLeakPlatforms(t *testing.T) {
@@ -162,7 +214,7 @@ func TestListPlazaGroups_CompositeAndOrdinaryGroupsDoNotLeakPlatforms(t *testing
 		byName["composite"].Models[0].Name,
 		byName["composite"].Models[1].Name,
 	})
-	require.Equal(t, []string{PlatformAnthropic, PlatformOpenAI}, []string{
+	require.Equal(t, []string{PlatformComposite, PlatformComposite}, []string{
 		byName["composite"].Models[0].Platform,
 		byName["composite"].Models[1].Platform,
 	})
@@ -316,10 +368,13 @@ func TestListPlazaGroups_RepoErrorsPropagate(t *testing.T) {
 	repo := &mockChannelRepository{
 		listAllFn: func(ctx context.Context) ([]Channel, error) { return nil, sentinel },
 	}
-	svc := NewModelPlazaService(repo, &stubGroupRepoForAvailable{}, nil, nil, nil)
+	groups := []Group{{ID: 10, Name: "g", Platform: PlatformOpenAI, RateMultiplier: 1,
+		ModelsListConfig: GroupModelsListConfig{Enabled: true, Models: []string{"gpt-5"}}}}
+	svc := NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, nil, nil, nil)
 	out, err := svc.ListGroups(context.Background())
-	require.Nil(t, out)
-	require.ErrorIs(t, err, sentinel)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Len(t, out[0].Models, 1)
 
 	svc2 := NewModelPlazaService(
 		&mockChannelRepository{listAllFn: func(ctx context.Context) ([]Channel, error) { return nil, nil }},
@@ -331,17 +386,42 @@ func TestListPlazaGroups_RepoErrorsPropagate(t *testing.T) {
 	require.ErrorIs(t, err2, sentinel)
 }
 
+func TestListGroups_UsesEnabledGroupModelsWithoutChannels(t *testing.T) {
+	repo := &mockChannelRepository{
+		listAllFn: func(context.Context) ([]Channel, error) {
+			return nil, errors.New("channelRepo.ListAll must not be called")
+		},
+	}
+	groups := []Group{
+		{ID: 10, Name: "public", Description: "desc", Platform: PlatformOpenAI, RateMultiplier: 1,
+			ModelsListConfig: GroupModelsListConfig{Enabled: true, Models: []string{" gpt-5 ", "gpt-5", "", "gpt-image-2"}}},
+		{ID: 20, Name: "disabled", Platform: PlatformAnthropic, ModelsListConfig: GroupModelsListConfig{Models: []string{"claude-sonnet"}}},
+	}
+	svc := NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, nil, nil, nil)
+	out, err := svc.ListGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Equal(t, int64(10), out[0].ID)
+	require.Equal(t, "desc", out[0].Description)
+	require.Equal(t, []string{"gpt-5", "gpt-image-2"}, []string{out[0].Models[0].Name, out[0].Models[1].Name})
+	for _, model := range out[0].Models {
+		require.Equal(t, PlatformOpenAI, model.Platform)
+	}
+}
+
 // newPlazaServiceWithBilling 构造接入计费服务与解析器的广场服务：解析器的渠道服务与广场共用同一份渠道数据。
 func newPlazaServiceWithBilling(channels []Channel, groups []Group, groupPlatforms map[int64]string, catalog *PricingService) *ModelPlazaService {
+	configurePlazaGroupModels(channels, groups)
 	repo := &mockChannelRepository{
-		listAllFn: func(ctx context.Context) ([]Channel, error) { return channels, nil },
+		listAllFn: func(ctx context.Context) ([]Channel, error) {
+			return nil, errors.New("channels must not be queried")
+		},
 		getGroupPlatformsFn: func(ctx context.Context, _ []int64) (map[int64]string, error) {
 			return groupPlatforms, nil
 		},
 	}
-	cs := NewChannelService(repo, nil, nil, nil)
 	bs := NewBillingService(&config.Config{}, catalog)
-	return NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, catalog, bs, NewModelPricingResolver(cs, bs))
+	return NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, catalog, bs, NewModelPricingResolver(nil, bs))
 }
 
 func plazaModelsByName(models []PlazaModel) map[string]PlazaModel {
@@ -486,10 +566,9 @@ func TestListGroups_TimePricingPassthrough(t *testing.T) {
 	out, err := svc.ListGroups(context.Background())
 	require.NoError(t, err)
 	m := out[0].Models[0]
-	require.NotNil(t, m.TimePricing)
-	require.Equal(t, "Asia/Shanghai", m.TimePricing.Timezone)
-	require.Len(t, m.TimePricing.Periods, 1)
-	require.InDelta(t, 0.5, m.TimePricing.Periods[0].Multiplier, 1e-12)
+	// Channel time-pricing is intentionally out of scope once the catalog is
+	// sourced from group model lists; there is no channel lookup in this path.
+	require.Nil(t, m.TimePricing)
 	// 展示单价为标准时段价
 	require.InDelta(t, 0.28e-6, *m.Pricing.InputPrice, 1e-15)
 }

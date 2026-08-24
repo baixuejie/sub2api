@@ -224,6 +224,19 @@ func (s *Service) buildConfigCatalog(ctx context.Context, userID int64) (*config
 				}
 			}
 		}
+		// The model plaza is intentionally driven by the enabled group model-list
+		// configuration and may therefore omit a legacy image group whose plaza
+		// entry has no image models. Keep the image studio usable by taking image
+		// models from that group's saved model list as a narrow fallback. This is
+		// only an image-studio catalog fallback; it does not alter plaza output.
+		if group.AllowImageGeneration && len(imageSeen) == 0 {
+			// imageModelNames supplies the same legacy fallback used by /options.
+			for _, name := range imageModelNames(group, nil) {
+				key := strings.ToLower(name)
+				imageSeen[key] = struct{}{}
+				imageOption.Models = append(imageOption.Models, ConfigModelOption{Name: name})
+			}
+		}
 		// A text-only OpenAI group may have no channel-backed plaza models. Its
 		// saved group model definition is still usable for prompt optimization.
 		if len(promptSeen) == 0 && !group.AllowImageGeneration {

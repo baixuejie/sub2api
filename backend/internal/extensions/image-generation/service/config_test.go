@@ -143,6 +143,83 @@ func TestImageGenerationConfigUsesTextGroupDefinitionWhenGroupIsNotInPlaza(t *te
 	require.Equal(t, int64(20), options.Config.PromptAPIKeyID)
 }
 
+func TestImageGenerationConfigFallsBackToGroupImageModelsWhenPlazaHasNoImages(t *testing.T) {
+	group := imageGroup(4, "legacy-images", true)
+	group.ModelsListConfig = core.GroupModelsListConfig{
+		Models: []string{"gpt-4.1-mini", "gpt-image-1", "gpt-image-2"},
+	}
+	key := configTestKey(20, 42, 4, "Image", "sk-image-secret-1234", true)
+	keys := &configFakeKeys{
+		listed:   []core.APIKey{{ID: key.ID, UserID: key.UserID, GroupID: key.GroupID, Status: key.Status}},
+		hydrated: map[int64]*core.APIKey{key.ID: key},
+	}
+	// The plaza still exposes a text model for this group, but no image model.
+	// The image studio must supplement the image choices from the saved group list.
+	svc := NewService(
+		&fakeGroups{groups: []core.Group{group}},
+		&fakePlaza{groups: []core.PlazaGroup{imagePlazaGroup(4, "gpt-4.1-mini")}},
+		keys,
+		&configFakeSettings{},
+	)
+
+	options, err := svc.GetConfigOptions(context.Background(), 42)
+	require.NoError(t, err)
+	require.Len(t, options.ImageGroups, 1)
+	require.Equal(t, int64(4), options.ImageGroups[0].ID)
+	require.Equal(t, []ConfigModelOption{{Name: "gpt-image-1"}, {Name: "gpt-image-2"}}, options.ImageGroups[0].Models)
+	require.Equal(t, int64(4), options.Config.ImageGroupID)
+	require.Equal(t, "gpt-image-2", options.Config.ImageModel)
+	require.Len(t, options.PromptGroups, 1)
+	require.True(t, options.APIKeys[0].ImageEnabled)
+}
+
+func TestImageGenerationConfigUsesDefaultImageModelForEmptyLegacyGroup(t *testing.T) {
+	group := imageGroup(5, "old-image-group", true)
+	key := configTestKey(21, 42, 5, "Image", "sk-image-secret-5678", true)
+	keys := &configFakeKeys{
+		listed:   []core.APIKey{{ID: key.ID, UserID: key.UserID, GroupID: key.GroupID, Status: key.Status}},
+		hydrated: map[int64]*core.APIKey{key.ID: key},
+	}
+	svc := NewService(
+		&fakeGroups{groups: []core.Group{group}},
+		&fakePlaza{groups: nil},
+		keys,
+		&configFakeSettings{},
+	)
+
+	options, err := svc.GetConfigOptions(context.Background(), 42)
+	require.NoError(t, err)
+	require.Len(t, options.ImageGroups, 1)
+	require.Equal(t, []ConfigModelOption{{Name: defaultImageModel}}, options.ImageGroups[0].Models)
+	require.Equal(t, int64(5), options.Config.ImageGroupID)
+	require.Equal(t, defaultImageModel, options.Config.ImageModel)
+	require.Equal(t, int64(21), options.Config.ImageAPIKeyID)
+}
+
+func TestImageGenerationConfigDoesNotAddDefaultToNonEmptyTextOnlyList(t *testing.T) {
+	group := imageGroup(6, "text-only-list", true)
+	group.ModelsListConfig = core.GroupModelsListConfig{
+		Enabled: true,
+		Models:  []string{"gpt-4.1-mini"},
+	}
+	key := configTestKey(22, 42, 6, "Text", "sk-text-secret-1234", true)
+	keys := &configFakeKeys{
+		listed:   []core.APIKey{{ID: key.ID, UserID: key.UserID, GroupID: key.GroupID, Status: key.Status}},
+		hydrated: map[int64]*core.APIKey{key.ID: key},
+	}
+	svc := NewService(
+		&fakeGroups{groups: []core.Group{group}},
+		&fakePlaza{groups: nil},
+		keys,
+		&configFakeSettings{},
+	)
+
+	options, err := svc.GetConfigOptions(context.Background(), 42)
+	require.NoError(t, err)
+	require.Empty(t, options.ImageGroups)
+	require.Empty(t, options.PromptGroups)
+}
+
 func TestImageGenerationConfigPersistsOnlyIDsAndUsesPreferredImageKey(t *testing.T) {
 	settings := &configFakeSettings{}
 	svc, keys := newConfigTestService(settings)

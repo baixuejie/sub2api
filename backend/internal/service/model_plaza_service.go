@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 )
 
 // PlazaOfficialPricing 模型广场展示用的官方参考价（USD per token），与计费同源：
@@ -59,8 +58,10 @@ type PlazaGroup struct {
 
 // ModelPlazaService 聚合模型广场数据。
 //
-// 模型枚举来自渠道配置；token 模型的展示单价与阶梯由 BillingService 的阶梯表
-// 查询给出（与扣费走同一条解析链与计费函数），图片/按次模型沿用渠道/分组档位价。
+// 模型枚举来自分组的 models_list_config；模型广场是一个配置目录，不依赖渠道
+// 是否已绑定或渠道缓存是否可用。token 模型的展示单价与阶梯由 BillingService
+// 的阶梯表查询给出（与扣费走同一条解析链与计费函数），图片/按次模型沿用
+// 分组价卡与分组档位价。
 type ModelPlazaService struct {
 	channelRepo    ChannelRepository
 	groupRepo      GroupRepository
@@ -88,30 +89,16 @@ func NewModelPlazaService(
 
 // ListGroups 返回模型广场数据：每个活跃分组附带其可用模型与定价。
 //
-// 模型枚举口径与 ListAvailable 一致（Active 渠道、SupportedModels ∪ 全局定价回落、
-// 平台隔离），仅把顶层从渠道换成分组：
-//   - 渠道按 lower(name) 排序后遍历，保证同名模型去重结果确定；
-//   - 同分组同名模型「先见者胜」，仅当已存条目无定价而新条目有定价时升级替换；
-//   - token 模型的单价与阶梯按实收口径合成（见 ResolveContextPricingSchedule），
-//     图片计费模型的档位价按实收口径合成（见 plazaImageDisplayPricing）；
-//   - 每个模型附带官方参考价（查不到为 nil）；
-//   - 只返回 Models 非空的分组；分组按 RateMultiplier 升序（同倍率按名称），
-//     组内模型按名称排序。
+// 模型列表完全由 groups.models_list_config 提供，不依赖渠道或渠道关联；查不到
+// 官方定价的模型仍保留，但 Pricing/OfficialPricing 为空。组内模型按名称排序，
+// 分组按 RateMultiplier 升序（同倍率按名称）。
 //
 // 可见性过滤（专属分组）不在此层做，由 handler 按登录态裁剪。
 func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error) {
-	channels, err := s.channelRepo.ListAll(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list channels: %w", err)
-	}
 	groups, err := s.groupRepo.ListActive(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list active groups: %w", err)
 	}
-
-	sort.SliceStable(channels, func(i, j int) bool {
-		return strings.ToLower(channels[i].Name) < strings.ToLower(channels[j].Name)
-	})
 
 	byGroup := make(map[int64]*PlazaGroup, len(groups))
 	groupEnt := make(map[int64]*Group, len(groups))
@@ -138,55 +125,36 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 		order = append(order, g.ID)
 	}
 
-	type modelKey struct {
-		platform string
-		name     string
-	}
-	// modelIdx[groupID][platform+modelName] = index into byGroup[groupID].Models
-	modelIdx := make(map[int64]map[modelKey]int, len(groups))
-	for i := range channels {
-		ch := &channels[i]
-		if ch.Status != StatusActive {
+	// ResolveContextPricingSchedule follows the same pricing chain as billing. The
+	// model plaza deliberately has no channel dependency, so strip the optional
+	// channel resolver from this copy before probing schedules. Group model cards
+	// and the global catalog remain available to the resolver.
+	plazaResolver := s.resolverWithoutChannels()
+	for _, gid := range order {
+		pg := byGroup[gid]
+		g := groupEnt[gid]
+		cfg := normalizeGroupModelsListConfig(g.ModelsListConfig)
+		if !cfg.Enabled || len(cfg.Models) == 0 {
 			continue
 		}
-		ch.normalizeBillingModelSource()
-		supported := ch.SupportedModels()
-		fillGlobalPricingFallback(s.pricingService, supported)
 
-		for _, gid := range ch.GroupIDs {
-			pg, ok := byGroup[gid]
-			if !ok {
-				continue
-			}
-			idx := modelIdx[gid]
-			if idx == nil {
-				idx = make(map[modelKey]int, len(supported))
-				modelIdx[gid] = idx
-			}
-			for j := range supported {
-				m := supported[j]
-				if pg.Platform == PlatformComposite {
-					if !isConcreteRequestPlatform(m.Platform) {
-						continue
-					}
-				} else if m.Platform != pg.Platform {
-					continue
+		for _, name := range cfg.Models {
+			var pricing *ChannelModelPricing
+			// A group card is the authoritative local price for this model. It is
+			// needed as the raw fallback for image/per-request models, whose
+			// context schedule is intentionally nil.
+			if configured := matchGroupModelPricing(g, name); configured != nil {
+				pricing = configured
+			} else if s.pricingService != nil {
+				if lp := s.pricingService.GetModelPricing(name); lp != nil {
+					pricing = synthesizePricingFromLiteLLM(lp, nil)
 				}
-				key := modelKey{platform: m.Platform, name: m.Name}
-				if at, seen := idx[key]; seen {
-					// 先见者胜；仅当已存条目无定价而新条目有定价时升级。
-					if pg.Models[at].Pricing == nil && m.Pricing != nil {
-						pg.Models[at].Pricing = m.Pricing
-					}
-					continue
-				}
-				idx[key] = len(pg.Models)
-				pg.Models = append(pg.Models, PlazaModel{
-					Name:     m.Name,
-					Platform: m.Platform,
-					Pricing:  m.Pricing,
-				})
 			}
+			pg.Models = append(pg.Models, PlazaModel{
+				Name:     name,
+				Platform: pg.Platform,
+				Pricing:  plazaImageDisplayPricing(pricing, g),
+			})
 		}
 	}
 
@@ -205,7 +173,7 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 		})
 		g := groupEnt[gid]
 		for j := range pg.Models {
-			s.fillDisplayPricing(ctx, &pg.Models[j], g)
+			s.fillDisplayPricingWithResolver(ctx, &pg.Models[j], g, plazaResolver)
 			pg.Models[j].OfficialPricing = s.lookupOfficialPricing(ctx, pg.Models[j].Name, officialMemo)
 		}
 		out = append(out, *pg)
@@ -220,6 +188,30 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 	return out, nil
 }
 
+// resolverWithoutChannels returns a resolver suitable for the model plaza. A
+// resolver normally consults ChannelService when a group card is absent; that
+// lookup would make this read path depend on channels again. Keep the billing
+// resolver and its catalog, but remove the optional channel service.
+func (s *ModelPlazaService) resolverWithoutChannels() *ModelPricingResolver {
+	if s.resolver == nil {
+		if s.billingService == nil {
+			return nil
+		}
+		return NewModelPricingResolver(nil, s.billingService)
+	}
+	if s.resolver.channelService == nil {
+		return s.resolver
+	}
+	billing := s.resolver.billingService
+	if billing == nil {
+		billing = s.billingService
+	}
+	if billing == nil {
+		return nil
+	}
+	return NewModelPricingResolver(nil, billing)
+}
+
 // ListPlazaGroups preserves the legacy extension contract while callers migrate
 // to the clearer ListGroups name.
 func (s *ModelPlazaService) ListPlazaGroups(ctx context.Context) ([]PlazaGroup, error) {
@@ -230,8 +222,16 @@ func (s *ModelPlazaService) ListPlazaGroups(ctx context.Context) ([]PlazaGroup, 
 // token 模型取计费阶梯表（单价与档位均由真实计费函数得出），
 // 图片/按次模型（或阶梯表不可用时）沿用渠道定价与分组图片档位价。
 func (s *ModelPlazaService) fillDisplayPricing(ctx context.Context, m *PlazaModel, g *Group) {
-	if s.billingService != nil && s.resolver != nil {
-		sched, err := s.billingService.ResolveContextPricingSchedule(ctx, s.resolver, ContextPricingScheduleInput{
+	s.fillDisplayPricingWithResolver(ctx, m, g, s.resolver)
+}
+
+func (s *ModelPlazaService) fillDisplayPricingWithResolver(ctx context.Context, m *PlazaModel, g *Group, resolver *ModelPricingResolver) {
+	// BillingService's catalog is token-oriented and does not retain LiteLLM's
+	// billing mode. Preserve an explicitly synthesized image/per-request card;
+	// only token (or unspecified) entries should go through the context probe.
+	canProbeContext := m.Pricing == nil || m.Pricing.BillingMode == "" || m.Pricing.BillingMode == BillingModeToken
+	if canProbeContext && s.billingService != nil && resolver != nil {
+		sched, err := s.billingService.ResolveContextPricingSchedule(ctx, resolver, ContextPricingScheduleInput{
 			Model:    m.Name,
 			Group:    g,
 			Platform: m.Platform,
@@ -354,8 +354,8 @@ func (s *ModelPlazaService) lookupOfficialPricing(ctx context.Context, modelName
 		if mp.SupportsCacheBreakdown {
 			result.CacheWrite1hPrice = nonZeroPtr(mp.CacheCreation1hPrice)
 		}
-		if s.resolver != nil {
-			sched, schedErr := s.billingService.ResolveContextPricingSchedule(ctx, s.resolver, ContextPricingScheduleInput{Model: modelName})
+		if resolver := s.resolverWithoutChannels(); resolver != nil {
+			sched, schedErr := s.billingService.ResolveContextPricingSchedule(ctx, resolver, ContextPricingScheduleInput{Model: modelName})
 			if schedErr == nil && sched != nil && len(sched.Tiers) > 1 {
 				result.Intervals = plazaIntervalsFromTiers(sched.Tiers)
 			}

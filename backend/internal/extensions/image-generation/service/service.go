@@ -184,16 +184,15 @@ func (s *Service) GetOptions(ctx context.Context, userID int64) (Options, error)
 		if group == nil || !group.IsActive() || !group.AllowImageGeneration || group.Platform != core.PlatformOpenAI {
 			continue
 		}
-		plazaGroup, ok := plazaByID[group.ID]
-		if !ok {
-			continue
-		}
-		models := make([]ModelOption, 0, len(plazaGroup.Models))
-		for _, model := range plazaGroup.Models {
-			if model.Platform != core.PlatformOpenAI || !core.IsGPTImageGenerationModel(model.Name) {
-				continue
+		plazaGroup, plazaOK := plazaByID[group.ID]
+		modelNames := imageModelNames(group, func() []core.PlazaModel {
+			if !plazaOK {
+				return nil
 			}
-			name := strings.TrimSpace(model.Name)
+			return plazaGroup.Models
+		}())
+		models := make([]ModelOption, 0, len(modelNames))
+		for _, name := range modelNames {
 			if name == "" {
 				continue
 			}
@@ -232,6 +231,73 @@ func (s *Service) GetOptions(ctx context.Context, userID int64) (Options, error)
 		})
 	}
 	return out, nil
+}
+
+// imageModelNames keeps the image studio usable for groups created before the
+// group-owned model list was introduced. The model plaza itself remains strict
+// and only exposes explicitly enabled model-list entries.
+func imageModelNames(group *core.Group, plazaModels []core.PlazaModel) []string {
+	seen := make(map[string]struct{})
+	models := make([]string, 0, len(plazaModels))
+	appendModel := func(raw string) {
+		name := strings.TrimSpace(raw)
+		if name == "" || !core.IsGPTImageGenerationModel(name) {
+			return
+		}
+		key := strings.ToLower(name)
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		models = append(models, name)
+	}
+	for _, model := range plazaModels {
+		if model.Platform == core.PlatformOpenAI {
+			appendModel(model.Name)
+		}
+	}
+	if group != nil && group.AllowImageGeneration && len(models) == 0 {
+		for _, name := range legacyImageModelFallback(group) {
+			appendModel(name)
+		}
+	}
+	return models
+}
+
+func groupModelListIsEmpty(models []string) bool {
+	for _, model := range models {
+		if strings.TrimSpace(model) != "" {
+			return false
+		}
+	}
+	return true
+}
+
+// legacyImageModelFallback returns image models for an image-enabled OpenAI
+// group whose plaza entry has no image models. An empty saved list represents
+// a pre-models_list_config group, whose native image default is gpt-image-2.
+func legacyImageModelFallback(group *core.Group) []string {
+	if group == nil || !group.AllowImageGeneration || group.Platform != core.PlatformOpenAI {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	models := make([]string, 0)
+	for _, raw := range group.ModelsListConfig.Models {
+		name := strings.TrimSpace(raw)
+		if name == "" || !core.IsGPTImageGenerationModel(name) {
+			continue
+		}
+		key := strings.ToLower(name)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		models = append(models, name)
+	}
+	if len(models) == 0 && groupModelListIsEmpty(group.ModelsListConfig.Models) {
+		return []string{defaultImageModel}
+	}
+	return models
 }
 
 // Prepare validates all client-controlled values and selects a server-side key.
