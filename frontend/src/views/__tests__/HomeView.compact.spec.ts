@@ -97,6 +97,10 @@ describe('HomeView compact mode', () => {
     const wrapper = mountHome(settings)
 
     expect(wrapper.find('[data-testid="compact-home"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="home-showcase"]').text()).toContain('GPT')
+    expect(wrapper.get('[data-testid="home-showcase"]').text()).toContain('CLAUDE')
+    expect(wrapper.get('[data-testid="home-showcase"]').text()).toContain('OpenClaw')
+    expect(wrapper.get('[data-testid="home-showcase"]').text()).toContain('DeepSeek Harness')
     expect(wrapper.find('.terminal-container').exists()).toBe(true)
   })
 

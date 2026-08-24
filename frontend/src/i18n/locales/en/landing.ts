@@ -14,9 +14,43 @@ export default {
     login: 'Login',
     getStarted: 'Get Started',
     goToDashboard: 'Go to Dashboard',
+    showcase: {
+      capabilities: 'Capabilities',
+      engines: 'Model engines',
+      eyebrow: 'AI ROUTING CORE / READY',
+      titlePrefix: 'Route every request through',
+      description: 'One API entry for GPT and Claude. Unified keys, resilient routing, and clear usage billing handled by Sub2API.',
+      readDocs: 'Read docs',
+      chooseEngine: 'Choose a model engine',
+      responseReady: 'response ready',
+      visualCaption: 'Request routing in progress · both engines online',
+      capabilityTitle: 'One entry point for two powerful engines',
+      capabilityDescription: 'Bring accounts, channels, and quotas into one clear API gateway so you can focus on the work that matters.',
+      toolTitle: 'Your tools, one connected center',
+      toolDescription: 'Keep Claude, Codex, OpenClaw, Hermes, DeepSeek Harness, and CC Switch workflows connected through one clear gateway.',
+      toolCoreCaption: 'WORKFLOW READY',
+      engineTitle: 'GPT and Claude, on demand',
+      engineDescription: 'Choose the right capability for each task while keeping a stable development experience through one interface.',
+      exploreModels: 'Explore model plaza',
+      gptDescription: 'GPT capabilities for general questions, structured tasks, and rapid iteration.',
+      claudeDescription: 'Claude capabilities for long-form work, complex reasoning, and careful writing.',
+      proof: {
+        gateway: 'Unified API gateway',
+        failover: 'Smart failover',
+        billing: 'Transparent usage billing'
+      },
+      status: {
+        gateway: 'Gateway status',
+        routing: 'Routing engine',
+        reliability: 'Reliability policy',
+        failover: 'Automatic failover',
+        usage: 'Usage mode',
+        payg: 'Pay as you go'
+      }
+    },
     // User-focused value proposition
     heroSubtitle: 'One Key, All AI Models',
-    heroDescription: 'No need to manage multiple subscriptions. Access Claude, GPT, Gemini and more with a single API key',
+    heroDescription: 'No need to manage multiple subscriptions. Access Claude and GPT with a single API key',
     tags: {
       subscriptionToApi: 'Subscription to API',
       stickySession: 'Session Persistence',
