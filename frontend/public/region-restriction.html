@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="白白AI地区服务提示页">
+  <title>白白AI · 当前地区暂不提供服务</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #0b1733;
+      --muted: #586782;
+      --blue: #1976ed;
+      --blue-soft: #eaf3ff;
+      --line: #d8e2ef;
+      --panel: rgba(255, 255, 255, .94);
+      --page: #f5f8fc;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 28px 18px;
+      color: var(--ink);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(circle at 15% 10%, rgba(37, 129, 246, .10), transparent 34%),
+        radial-gradient(circle at 88% 90%, rgba(77, 166, 255, .08), transparent 36%),
+        var(--page);
+    }
+
+    .shell {
+      width: min(920px, 100%);
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: var(--panel);
+      box-shadow: 0 24px 70px rgba(36, 69, 111, .13);
+    }
+
+    .content {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(260px, .9fr);
+      gap: clamp(24px, 6vw, 68px);
+      align-items: center;
+      padding: clamp(28px, 7vw, 68px);
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 30px; }
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      object-fit: cover;
+      object-position: 50% 16%;
+      border-radius: 12px;
+      border: 1px solid #dce8f7;
+      background: #fff;
+    }
+    .brand-name { font-size: 17px; font-weight: 750; letter-spacing: .01em; }
+    .brand-subtitle { margin-top: 3px; color: var(--muted); font-size: 12px; }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 14px;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .08em;
+    }
+    .eyebrow::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #f2aa3c;
+      box-shadow: 0 0 0 5px #fff1d8;
+    }
+    h1 { margin: 0; font-size: clamp(30px, 5vw, 46px); line-height: 1.18; letter-spacing: -.03em; }
+    .lead { margin: 18px 0 0; color: var(--muted); font-size: 16px; line-height: 1.75; }
+
+    .notice {
+      margin-top: 26px;
+      padding: 17px 18px;
+      border: 1px solid #cfe1f8;
+      border-radius: 14px;
+      background: linear-gradient(110deg, #f5faff, var(--blue-soft));
+    }
+    .notice strong { display: block; margin-bottom: 5px; font-size: 14px; }
+    .notice p { margin: 0; color: #526887; font-size: 13px; line-height: 1.65; }
+
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+    .action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      gap: 9px;
+      padding: 10px 14px;
+      border: 1px solid #c9dbf2;
+      border-radius: 12px;
+      color: #075ec7;
+      background: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      transition: border-color .2s, background .2s, transform .2s;
+    }
+    .action:hover { border-color: #7eafe9; background: #f5f9ff; transform: translateY(-1px); }
+    .action svg { width: 18px; height: 18px; fill: currentColor; }
+
+    .visual { display: grid; justify-items: center; gap: 20px; }
+    .logo-visual { width: min(100%, 340px); max-height: 300px; object-fit: contain; filter: drop-shadow(0 18px 24px rgba(37, 85, 153, .14)); }
+    .region-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 13px;
+      border: 1px solid #d9e4f2;
+      border-radius: 999px;
+      color: var(--muted);
+      background: #fff;
+      font-size: 12px;
+    }
+    .region-label::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #f2aa3c; }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(5, 17, 38, .56);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity .2s, visibility .2s;
+    }
+    .modal.is-open { opacity: 1; visibility: visible; }
+    .modal-dialog {
+      position: relative;
+      width: min(360px, 100%);
+      padding: 26px;
+      border-radius: 18px;
+      background: #fff;
+      box-shadow: 0 24px 70px rgba(4, 17, 38, .28);
+      text-align: center;
+      transform: translateY(10px) scale(.98);
+      transition: transform .2s;
+    }
+    .modal.is-open .modal-dialog { transform: translateY(0) scale(1); }
+    .modal-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 36px;
+      height: 36px;
+      border: 0;
+      border-radius: 50%;
+      color: #52627a;
+      background: #f0f4f9;
+      font-size: 24px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .modal h2 { margin: 4px 0 6px; font-size: 21px; }
+    .modal p { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
+    .modal img { display: block; width: 100%; border-radius: 10px; }
+    .email-address {
+      display: block;
+      margin: 12px 0 18px;
+      padding: 13px 12px;
+      border: 1px solid #d9e4f2;
+      border-radius: 10px;
+      color: #075ec7;
+      background: #f5f9ff;
+      font-size: 15px;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+    .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .modal-actions .action { min-height: 42px; font-size: 13px; }
+
+    footer { padding: 0 30px 24px; color: #8a98ad; font-size: 12px; text-align: center; }
+    @media (max-width: 700px) {
+      body { padding: 14px; }
+      .content { grid-template-columns: 1fr; padding: 28px 22px 24px; gap: 28px; }
+      .visual { order: -1; }
+      .logo-visual { width: min(100%, 250px); max-height: 220px; }
+      .brand { margin-bottom: 22px; }
+      .actions { grid-template-columns: 1fr; }
+      footer { padding: 0 20px 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell" aria-labelledby="page-title">
+    <div class="content">
+      <section>
+        <div class="brand">
+          <img class="brand-mark" src="./ai-buddy-logo.png" alt="白白AI logo">
+          <div>
+            <div class="brand-name">白白AI</div>
+            <div class="brand-subtitle">Your AI Assistant</div>
+          </div>
+        </div>
+        <div class="eyebrow">REGIONAL AVAILABILITY</div>
+        <h1 id="page-title">当前地区暂不提供服务</h1>
+        <p class="lead">根据白白AI的服务区域政策，当前网络所在地区暂未开放访问。</p>
+        <div class="notice">
+          <strong>认为地区识别有误？</strong>
+          <p>请附上访问时间与当前网络运营商信息联系我们，我们会协助核查。</p>
+        </div>
+        <div class="actions">
+          <button class="action" id="email-button" type="button" aria-haspopup="dialog" aria-controls="email-modal">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h16a2 2 0 0 0 2-2V6c0-1.1-.9-2-2-2Zm0 4-8 5-8-5V6l8 5 8-5v2Z"/></svg>
+            邮件联系
+          </button>
+          <button class="action" id="wechat-button" type="button" aria-haspopup="dialog" aria-controls="wechat-modal">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 4C5.36 4 2 6.69 2 10c0 1.89 1.06 3.59 2.74 4.7L4 18l3.23-1.62c.72.2 1.48.3 2.27.3.2 0 .4-.01.6-.02A6.35 6.35 0 0 1 10 15c0-3.31 3.36-6 7.5-6 .33 0 .65.02.97.05C17.71 6.31 14.13 4 9.5 4Zm-3 5.25a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2Zm6 0a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2ZM17.5 10c-3.59 0-6.5 2.24-6.5 5s2.91 5 6.5 5c.69 0 1.36-.09 1.98-.27L22 21l-.58-2.66C22.4 17.43 23 16.27 23 15c0-2.76-2.46-5-5.5-5Zm-2.25 4.15a.9.9 0 1 1 0-1.8.9.9 0 0 1 0 1.8Zm4.5 0a.9.9 0 1 1 0-1.8.9.9 0 0 1 0 1.8Z"/></svg>
+            微信客服
+          </button>
+        </div>
+      </section>
+
+      <aside class="visual" aria-label="白白AI品牌标识">
+        <img class="logo-visual" src="./ai-buddy-logo.png" alt="AI Buddy 白白AI">
+        <div class="region-label">区域服务访问提示</div>
+      </aside>
+    </div>
+    <footer>白白AI · 感谢你的理解与支持</footer>
+  </main>
+
+  <div class="modal" id="wechat-modal" role="dialog" aria-modal="true" aria-labelledby="wechat-title">
+    <div class="modal-dialog">
+      <button class="modal-close" id="modal-close" type="button" aria-label="关闭">&times;</button>
+      <h2 id="wechat-title">微信客服一</h2>
+      <p>使用微信扫描二维码联系客服</p>
+      <img src="./img/kefu1.jpg" alt="白白AI 微信客服一二维码">
+    </div>
+  </div>
+
+  <div class="modal" id="email-modal" role="dialog" aria-modal="true" aria-labelledby="email-title">
+    <div class="modal-dialog">
+      <button class="modal-close" id="email-modal-close" type="button" aria-label="关闭">&times;</button>
+      <h2 id="email-title">邮件联系</h2>
+      <p>请发送邮件描述遇到的问题，我们会尽快回复。</p>
+      <div class="email-address">baixuejieemail@163.com</div>
+      <div class="modal-actions">
+        <button class="action" id="copy-email-button" type="button">复制邮箱</button>
+        <a class="action" href="mailto:baixuejieemail@163.com?subject=%E7%99%BD%E7%99%BDAI%20%E5%9C%B0%E5%8C%BA%E8%AE%BF%E9%97%AE%E9%97%AE%E9%A2%98">打开邮箱</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="./error.js" defer></script>
+</body>
+</html>

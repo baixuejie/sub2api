@@ -14,9 +14,43 @@ export default {
     login: '登录',
     getStarted: '立即开始',
     goToDashboard: '进入控制台',
+    showcase: {
+      capabilities: '核心能力',
+      engines: '模型引擎',
+      eyebrow: 'AI ROUTING CORE / READY',
+      titlePrefix: '让每一次请求，都经过',
+      description: '一个 API 入口，智能连接 GPT 与 Claude。统一密钥、稳定调度、清晰计费，把复杂的模型接入交给白白AI。',
+      readDocs: '查看文档',
+      chooseEngine: '选择模型引擎',
+      responseReady: '响应已就绪',
+      visualCaption: '请求正在智能路由中 · 双引擎在线',
+      capabilityTitle: '一个入口，掌控两大模型引擎',
+      capabilityDescription: '把账号、渠道和额度管理收拢到一个清晰的 API 网关里，专注于真正重要的工作。',
+      toolTitle: '常用工具，围绕同一个中枢协作',
+      toolDescription: '让 Claude、Codex、OpenClaw、Hermes、DeepSeek Harness 和 CC Switch 等工具工作流保持在同一条清晰的连接线上。',
+      toolCoreCaption: 'WORKFLOW READY',
+      engineTitle: 'GPT 与 Claude，按需切换',
+      engineDescription: '根据任务选择合适的模型能力，并通过统一接口保持稳定的开发体验。',
+      exploreModels: '探索模型广场',
+      gptDescription: '适合通用问答、结构化任务与快速迭代的 GPT 模型能力。',
+      claudeDescription: '适合长文本、复杂推理与高质量写作的 Claude 模型能力。',
+      proof: {
+        gateway: '统一 API 网关',
+        failover: '智能故障切换',
+        billing: '按量透明计费'
+      },
+      status: {
+        gateway: '网关状态',
+        routing: '路由引擎',
+        reliability: '可靠性策略',
+        failover: '自动故障切换',
+        usage: '用量模式',
+        payg: '按量计费'
+      }
+    },
     // 新增：面向用户的价值主张
     heroSubtitle: '一个密钥，畅用多个 AI 模型',
-    heroDescription: '无需管理多个订阅账号，一站式接入 Claude、GPT、Gemini 等主流 AI 服务',
+    heroDescription: '无需管理多个订阅账号，一站式接入 Claude 与 GPT 主流 AI 服务',
     tags: {
       subscriptionToApi: '订阅转 API',
       stickySession: '会话保持',
