@@ -115,6 +115,15 @@ describe('HomeView compact mode', () => {
     expect(wrapper.find('.terminal-container').exists()).toBe(true)
   })
 
+  it('links the unauthenticated free-registration CTA to the registration page', () => {
+    const wrapper = mountHome()
+    const cta = wrapper
+      .findAllComponents(RouterLinkStub)
+      .find((link) => link.text().includes('home.cta.button'))
+
+    expect(cta?.props('to')).toBe('/register')
+  })
+
   it('links unauthenticated visitors to login', () => {
     expect(compactDestination(mountHome({ compact_home_enabled: true }))).toBe('/login')
   })

@@ -60,7 +60,7 @@
           </h1>
           <p class="hero-description">{{ t('home.showcase.description') }}</p>
           <div class="hero-cta">
-            <router-link :to="isAuthenticated ? dashboardPath : '/login'" class="showcase-primary-button">
+            <router-link :to="isAuthenticated ? dashboardPath : '/register'" class="showcase-primary-button">
               <Icon name="bolt" size="sm" />
               {{ isAuthenticated ? t('home.goToDashboard') : t('home.getStarted') }}
               <Icon name="arrowRight" size="sm" />
@@ -181,7 +181,7 @@
 
       <section class="landing-section audience-section" aria-labelledby="audience-title">
         <div class="audience-panel">
-          <div class="audience-copy"><span class="section-kicker">{{ t('home.showcase.developerEnterprise.eyebrow') }}</span><h2 id="audience-title">{{ t('home.showcase.developerEnterprise.title') }}</h2><p>{{ t('home.showcase.developerEnterprise.description') }}</p><router-link :to="isAuthenticated ? dashboardPath : '/login'" class="showcase-primary-button">{{ isAuthenticated ? t('home.goToDashboard') : t('home.getStarted') }} <Icon name="arrowRight" size="sm" /></router-link></div>
+          <div class="audience-copy"><span class="section-kicker">{{ t('home.showcase.developerEnterprise.eyebrow') }}</span><h2 id="audience-title">{{ t('home.showcase.developerEnterprise.title') }}</h2><p>{{ t('home.showcase.developerEnterprise.description') }}</p><router-link :to="isAuthenticated ? dashboardPath : '/register'" class="showcase-primary-button">{{ isAuthenticated ? t('home.goToDashboard') : t('home.getStarted') }} <Icon name="arrowRight" size="sm" /></router-link></div>
           <div class="audience-points"><article v-for="item in audienceItems" :key="item.key"><span class="audience-icon"><Icon :name="item.icon" size="md" /></span><div><h3>{{ t(`home.showcase.developerEnterprise.${item.key}.title`) }}</h3><p>{{ t(`home.showcase.developerEnterprise.${item.key}.description`) }}</p></div></article></div>
         </div>
       </section>
@@ -191,7 +191,7 @@
         <div class="faq-list"><details v-for="(item, index) in faqItems" :key="item.key" class="faq-item" :open="index === 0"><summary><span>{{ t(`home.showcase.faq.items.${item.key}.question`) }}</span><Icon name="chevronDown" size="sm" /></summary><p>{{ t(`home.showcase.faq.items.${item.key}.answer`) }}</p></details></div>
       </section>
 
-      <section class="showcase-cta" aria-labelledby="cta-title"><div><span class="section-kicker">08 / CONNECT</span><h2 id="cta-title">{{ t('home.cta.title') }}</h2><p>{{ t('home.cta.description') }}</p></div><router-link :to="isAuthenticated ? dashboardPath : '/login'" class="showcase-primary-button">{{ isAuthenticated ? t('home.goToDashboard') : t('home.cta.button') }}<Icon name="arrowRight" size="sm" /></router-link></section>
+      <section class="showcase-cta" aria-labelledby="cta-title"><div><span class="section-kicker">08 / CONNECT</span><h2 id="cta-title">{{ t('home.cta.title') }}</h2><p>{{ t('home.cta.description') }}</p></div><router-link :to="isAuthenticated ? dashboardPath : '/register'" class="showcase-primary-button">{{ isAuthenticated ? t('home.goToDashboard') : t('home.cta.button') }}<Icon name="arrowRight" size="sm" /></router-link></section>
     </main>
 
     <footer class="showcase-footer"><div class="footer-brand"><span class="brand-mark"><img :src="siteLogo || '/logo.svg'" :alt="siteName" /></span><div><strong>{{ siteName }}</strong><small>{{ t('home.footerTagline') }}</small></div></div><div class="footer-links"><router-link to="/model-plaza">{{ t('home.showcase.nav.pricing') }}</router-link><a v-if="docUrl" :href="docUrl" target="_blank" rel="noopener noreferrer">{{ t('home.docs') }}</a><a :href="githubUrl" target="_blank" rel="noopener noreferrer">GitHub</a></div><p>&copy; {{ currentYear }} {{ siteName }}. {{ t('home.footer.allRightsReserved') }}</p></footer>
