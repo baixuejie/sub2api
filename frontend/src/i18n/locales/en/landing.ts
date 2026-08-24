@@ -18,7 +18,8 @@ export default {
       capabilities: 'Capabilities',
       engines: 'Model engines',
       eyebrow: 'AI ROUTING CORE / READY',
-      titlePrefix: 'Route every request through',
+      titlePrefix: 'One unified API gateway for',
+      titleHighlight: 'countless AI models',
       description: 'One API entry for GPT and Claude. Unified keys, resilient routing, and clear usage billing handled by Sub2API.',
       readDocs: 'Read docs',
       chooseEngine: 'Choose a model engine',
@@ -46,8 +47,207 @@ export default {
         failover: 'Automatic failover',
         usage: 'Usage mode',
         payg: 'Pay as you go'
+      },
+      nav: {
+        pricing: 'Pricing',
+        apps: 'Apps',
+        whyUs: 'Why choose us',
+        steps: 'Get started in three steps',
+        developers: 'Developers & teams',
+        faq: 'FAQ'
+      },
+      pricing: {
+        eyebrow: '05 / SIMPLE PRICING',
+        title: 'Transparent, flexible usage pricing',
+        description: 'Pay for what you actually use, without paying for idle subscriptions. Usage, balance, and quotas stay visible in one dashboard.',
+        action: 'View full pricing',
+        note: 'No long-term contract · Adjust quotas anytime · Pay as you go',
+        features: {
+          payAsYouGo: 'Pay as you go',
+          transparent: 'Transparent costs',
+          quotaControl: 'Quota controls'
+        }
+      },
+      apps: {
+        eyebrow: '03 / APP ECOSYSTEM',
+        title: 'Your favorite apps, ready to connect',
+        description: 'From desktop clients to intelligent coding tools, connect the workflows you already use through one API entry point.',
+        supported: 'Supported',
+        download: 'Official download',
+        website: 'Official website',
+        viewAll: 'View all apps',
+        previewTitle: 'Tool workspace',
+        previewStatus: 'Online',
+        previewSelected: 'Current connection',
+        previewConnected: 'Connection stable',
+        previewUpdated: 'Live updates',
+        previous: 'Previous apps',
+        next: 'Next apps',
+        items: {
+          claude: {
+            name: 'Claude',
+            maker: 'Anthropic',
+            description: 'An AI assistant for writing, analysis, and thoughtful conversations.'
+          },
+          codex: {
+            name: 'Codex',
+            maker: 'OpenAI',
+            description: 'Understand code, edit projects, and complete development tasks from the terminal.'
+          },
+          openclaw: {
+            name: 'OpenClaw',
+            maker: 'Open Source',
+            description: 'An extensible local AI workflow and automation tool.'
+          },
+          hermes: {
+            name: 'Hermes',
+            maker: 'Nous Research',
+            description: 'An open-source agent and research tool for developers.'
+          },
+          deepseekHarness: {
+            name: 'DeepSeek Harness',
+            maker: 'DeepSeek AI',
+            description: 'Bring DeepSeek capabilities into your local development environment.'
+          },
+          ccSwitch: {
+            name: 'CC Switch',
+            maker: 'Community',
+            description: 'Switch between model and client configurations in seconds.'
+          }
+        }
+      },
+      whyUs: {
+        eyebrow: '01 / WHY SUB2API',
+        title: 'Make model access simple',
+        description: 'Reliable routing, clear billing, and practical controls help individuals and teams use AI with confidence.',
+        items: {
+          unified: {
+            title: 'One entry point, one control plane',
+            description: 'Use one API key for connected models, accounts, channels, and usage in a single dashboard.'
+          },
+          resilient: {
+            title: 'Smart routing that stays reliable',
+            description: 'Route requests by model and channel health, then fail over smoothly when a limit is reached.'
+          },
+          transparent: {
+            title: 'Every usage cost is clear',
+            description: 'See requests, tokens, and cost details in real time, with quotas and budgets for every key.'
+          },
+          private: {
+            title: 'Your data and permissions stay yours',
+            description: 'Granular access, audit records, and self-hosting support the security needs of real projects.'
+          },
+          reliability: {
+            title: 'A reliable request path',
+            description: 'Multi-channel routing and automatic failover keep critical requests moving.'
+          },
+          control: {
+            title: 'Complete usage control',
+            description: 'Set quotas by member, project, or API key and know exactly how the budget is being used.'
+          },
+          pricing: {
+            title: 'Transparent usage billing',
+            description: 'Review every charge clearly and pay only for the tokens you actually use.'
+          },
+          support: {
+            title: 'Fits your existing workflow',
+            description: 'Use familiar SDKs and AI apps without rebuilding the projects you already have.'
+          }
+        }
+      },
+      steps: {
+        eyebrow: '02 / GET STARTED',
+        title: 'Go live in three steps',
+        description: 'From sign-up to your first request in just a few minutes.',
+        items: {
+          account: {
+            number: '01',
+            title: 'Create an account',
+            description: 'Sign up, open the console, and create your first API key.'
+          },
+          configure: {
+            number: '02',
+            title: 'Configure your workflow',
+            description: 'Add the unified Base URL and API key to your SDK, client, or automation tool.'
+          },
+          launch: {
+            number: '03',
+            title: 'Launch and iterate',
+            description: 'Make your first request, then improve routing and quotas with logs and usage data.'
+          }
+        }
+      },
+      recommendedModels: {
+        eyebrow: '04 / RECOMMENDED MODELS',
+        title: 'Choose the right model for every task',
+        description: 'GPT and Claude cover everyday questions, coding, long-form work, and complex reasoning.',
+        gpt: {
+          name: 'GPT',
+          label: 'General & development',
+          description: 'Fast, mature, and versatile for code, automation, and structured tasks.',
+          action: 'Explore GPT models'
+        },
+        claude: {
+          name: 'Claude',
+          label: 'Reasoning & creative work',
+          description: 'Long context and nuanced writing for research, analysis, and creative work.',
+          action: 'Explore Claude models'
+        }
+      },
+      developerEnterprise: {
+        eyebrow: '06 / BUILT FOR TEAMS',
+        title: 'From personal projects to production teams',
+        description: 'One clear API foundation helps developers iterate quickly while giving teams the visibility and governance they need.',
+        developer: {
+          title: 'Freedom for developers',
+          description: 'Use familiar OpenAI and Anthropic SDKs and connect existing projects by changing one endpoint.',
+          points: ['OpenAI / Anthropic API compatible', 'Clear request and usage logs', 'Consistent local and production setup'],
+          action: 'Read developer docs'
+        },
+        enterprise: {
+          title: 'Control for teams',
+          description: 'Manage access and budgets by member, project, and API key while keeping clear boundaries as you scale.',
+          points: ['Team members and role permissions', 'Quotas, budgets, and audit records', 'Multi-channel routing and failover'],
+          action: 'Talk to our team'
+        }
+      },
+      faq: {
+        eyebrow: '07 / FAQ',
+        title: 'Still have questions?',
+        description: 'Here are answers to the questions people ask before getting started.',
+        items: {
+          what: {
+            question: 'What is Sub2API?',
+            answer: 'Sub2API is a unified AI API gateway that brings models, accounts, and channels into one stable, manageable entry point.'
+          },
+          access: {
+            question: 'How do I get started?',
+            answer: 'Create an account, generate an API key, and point your app or client to the unified Base URL.'
+          },
+          models: {
+            question: 'Which models are supported?',
+            answer: 'GPT and Claude are the current focus of the home experience. Check the model list in your console for available channels.'
+          },
+          pricing: {
+            question: 'How does pricing work?',
+            answer: 'Billing is based on actual API usage, with balance, detailed usage data, and quota controls. See the pricing page for details.'
+          },
+          security: {
+            question: 'Is my data secure?',
+            answer: 'Permissions, quotas, and logs help you control access. With self-hosting, your data and credentials remain in your own infrastructure.'
+          },
+          setup: {
+            question: 'Do I need to change my existing code?',
+            answer: 'Usually you only need to point your SDK Base URL and API key to Sub2API, while keeping the rest of your code unchanged.'
+          },
+          support: {
+            question: 'Where can I get help?',
+            answer: 'Start with the docs and console logs. For further help, use the contact details provided by the project or your deployment.'
+          }
+        }
       }
     },
+    footerTagline: 'Unified AI API gateway',
     // User-focused value proposition
     heroSubtitle: 'One Key, All AI Models',
     heroDescription: 'No need to manage multiple subscriptions. Access Claude and GPT with a single API key',

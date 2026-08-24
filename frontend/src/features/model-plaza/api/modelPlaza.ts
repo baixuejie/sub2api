@@ -7,10 +7,15 @@ export async function loadModelPlaza(options?: { signal?: AbortSignal }): Promis
   const plazaRequest = apiClient.get<Omit<ModelPlazaResponse, 'balance_recharge_multiplier'>>('/model-plaza', {
     signal: options?.signal
   })
-  const paymentRequest = paymentAPI.getConfig()
+  // `/payment/config` is an authenticated user endpoint. Avoid calling it for
+  // anonymous visitors because the shared 401 interceptor would otherwise
+  // redirect a public model-plaza page to the login screen.
+  const paymentRequest = localStorage.getItem('auth_token')
+    ? paymentAPI.getConfig()
+    : Promise.resolve<null>(null)
   const [plaza, payment] = await Promise.allSettled([plazaRequest, paymentRequest])
   if (plaza.status === 'rejected') throw plaza.reason
-  const multiplier = payment.status === 'fulfilled' ? Number(payment.value.data?.balance_recharge_multiplier) : 10
+  const multiplier = payment.status === 'fulfilled' ? Number(payment.value?.data?.balance_recharge_multiplier) : 10
   return {
     ...plaza.value.data,
     balance_recharge_multiplier: Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 10

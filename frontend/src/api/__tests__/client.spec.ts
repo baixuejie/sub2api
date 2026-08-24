@@ -12,6 +12,7 @@ describe('API Client', () => {
 
   beforeEach(async () => {
     localStorage.clear()
+    sessionStorage.clear()
     window.history.replaceState({}, '', '/')
     // 每次测试重新导入以获取干净的模块状态
     vi.resetModules()
@@ -310,6 +311,57 @@ describe('API Client', () => {
   // --- 401 Token 刷新 ---
 
   describe('401 Token 刷新', () => {
+    it('匿名请求收到 401 时不跳转登录页', async () => {
+      window.history.replaceState({}, '', '/model-plaza')
+      const adapter = vi.fn().mockRejectedValue({
+        response: {
+          status: 401,
+          data: { code: 'AUTH_REQUIRED', message: 'Authentication required' },
+        },
+        config: {
+          url: '/payment/config',
+          headers: {},
+        },
+        code: 'ERR_BAD_REQUEST',
+      })
+      apiClient.defaults.adapter = adapter
+
+      await expect(apiClient.get('/payment/config')).rejects.toMatchObject({
+        status: 401,
+        code: 'AUTH_REQUIRED',
+      })
+
+      expect(window.location.pathname).toBe('/model-plaza')
+      expect(sessionStorage.getItem('auth_expired')).toBeNull()
+    })
+
+    it('模型广场上的失效 refresh_token 不跳转登录页', async () => {
+      localStorage.setItem('auth_token', 'expired-token')
+      localStorage.setItem('refresh_token', 'expired-refresh-token')
+      localStorage.setItem('auth_user', JSON.stringify({ id: 7 }))
+      localStorage.setItem('token_expires_at', String(Date.now() - 1))
+      window.history.replaceState({}, '', '/model-plaza')
+
+      const adapter = vi.fn().mockRejectedValue({
+        response: {
+          status: 401,
+          data: { code: 'TOKEN_EXPIRED', message: 'Token expired' },
+        },
+        config: {
+          url: '/payment/config',
+          headers: { Authorization: 'Bearer expired-token' },
+        },
+        code: 'ERR_BAD_REQUEST',
+      })
+      apiClient.defaults.adapter = adapter
+      vi.spyOn(axios, 'post').mockRejectedValueOnce(new Error('refresh failed'))
+
+      await expect(apiClient.get('/payment/config')).rejects.toBeDefined()
+
+      expect(window.location.pathname).toBe('/model-plaza')
+      expect(localStorage.getItem('auth_token')).toBeNull()
+    })
+
     it('无 refresh_token 时 401 清除 localStorage', async () => {
       localStorage.setItem('auth_token', 'expired-token')
       // 不设置 refresh_token

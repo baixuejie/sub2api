@@ -27,6 +27,14 @@ export const apiClient: AxiosInstance = axios.create({
   }
 })
 
+// Public pages should remain usable when a browser still has an expired session
+// cached locally. Protected pages retain the normal redirect-to-login behavior.
+function isPublicModelPlazaPage(): boolean {
+  if (typeof window === 'undefined') return false
+  const pathname = window.location.pathname.replace(/\/+$/, '') || '/'
+  return pathname === '/model-plaza' || pathname === '/home'
+}
+
 // ==================== Request Interceptor ====================
 
 // Get user's timezone
@@ -207,7 +215,7 @@ apiClient.interceptors.response.use(
             localStorage.removeItem('token_expires_at')
             sessionStorage.setItem('auth_expired', '1')
 
-            if (!window.location.pathname.includes('/login')) {
+            if (!isPublicModelPlazaPage() && !window.location.pathname.includes('/login')) {
               window.location.href = '/login'
             }
 
@@ -219,7 +227,9 @@ apiClient.interceptors.response.use(
           }
         }
 
-        // No refresh token or is auth endpoint - clear auth and redirect
+        // A 401 from a public endpoint (for example, payment configuration used by the
+        // anonymous model plaza) must stay a normal request error. Only treat it as an
+        // expired session when this request actually carried authentication state.
         const hasToken = !!localStorage.getItem('auth_token')
         const headers = error.config?.headers as Record<string, unknown> | undefined
         const authHeader = headers?.Authorization ?? headers?.authorization
@@ -230,16 +240,20 @@ apiClient.interceptors.response.use(
               ? authHeader.length > 0
               : !!authHeader
 
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('refresh_token')
-        localStorage.removeItem('auth_user')
-        localStorage.removeItem('token_expires_at')
-        if ((hasToken || sentAuth) && !isAuthEndpoint) {
-          sessionStorage.setItem('auth_expired', '1')
-        }
-        // Only redirect if not already on login page
-        if (!window.location.pathname.includes('/login')) {
-          window.location.href = '/login'
+        const hasAuthState = hasToken || sentAuth || !!refreshToken
+        if (hasAuthState) {
+          localStorage.removeItem('auth_token')
+          localStorage.removeItem('refresh_token')
+          localStorage.removeItem('auth_user')
+          localStorage.removeItem('token_expires_at')
+          if (!isAuthEndpoint) {
+            sessionStorage.setItem('auth_expired', '1')
+          }
+          // Only redirect if not already on login page. Auth endpoints themselves should
+          // return their structured error to the caller instead of causing a redirect loop.
+          if (!isAuthEndpoint && !isPublicModelPlazaPage() && !window.location.pathname.includes('/login')) {
+            window.location.href = '/login'
+          }
         }
       }
 

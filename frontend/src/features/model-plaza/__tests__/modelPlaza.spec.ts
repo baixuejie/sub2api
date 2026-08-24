@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   BILLING_MODE_IMAGE,
   BILLING_MODE_PER_REQUEST,
@@ -17,6 +17,20 @@ import {
   sortModels,
   tierLabel
 } from '../utils/modelPlaza'
+import { loadModelPlaza } from '../api/modelPlaza'
+
+const { get, getConfig } = vi.hoisted(() => ({
+  get: vi.fn(),
+  getConfig: vi.fn(),
+}))
+
+vi.mock('@/api/client', () => ({
+  apiClient: { get },
+}))
+
+vi.mock('@/api/payment', () => ({
+  paymentAPI: { getConfig },
+}))
 
 function model(name: string, mode = BILLING_MODE_TOKEN): PlazaModel {
   return {
@@ -141,5 +155,38 @@ describe('model plaza extension view model', () => {
     expect(tierLabel({ ...base, min_tokens: 0, max_tokens: 200_000 })).toBe('≤200K')
     expect(tierLabel({ ...base, min_tokens: 200_000, max_tokens: null })).toBe('>200K')
     expect(tierLabel({ ...base, min_tokens: 0, max_tokens: null, tier_label: '4K' })).toBe('4K')
+  })
+})
+
+describe('model plaza API adapter', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    get.mockReset()
+    getConfig.mockReset()
+    get.mockResolvedValue({ data: { description: '', groups: [] } })
+    getConfig.mockResolvedValue({ data: { balance_recharge_multiplier: 3 } })
+  })
+
+  it('does not request authenticated payment config for anonymous visitors', async () => {
+    await expect(loadModelPlaza()).resolves.toMatchObject({
+      description: '',
+      groups: [],
+      balance_recharge_multiplier: 10,
+    })
+
+    expect(get).toHaveBeenCalledWith('/model-plaza', { signal: undefined })
+    expect(getConfig).not.toHaveBeenCalled()
+  })
+
+  it('loads the user-specific payment multiplier when authenticated', async () => {
+    localStorage.setItem('auth_token', 'access-token')
+
+    await expect(loadModelPlaza()).resolves.toMatchObject({
+      description: '',
+      groups: [],
+      balance_recharge_multiplier: 3,
+    })
+
+    expect(getConfig).toHaveBeenCalledOnce()
   })
 })

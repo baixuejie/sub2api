@@ -54,17 +54,12 @@ const toolLabel = computed(() => ({
   ccswitch: 'CC Switch'
 }[props.tool]))
 
-// Codex uses the official OpenAI mark because the Codex CLI repository does
-// not publish a separate standalone icon. The product name remains visible
-// beside the mark, so it is never presented as a GPT model icon.
-const brandModel = computed(() => ({
-  claude: 'claude-3-7-sonnet',
-  codex: 'openai',
-  openclaw: 'openai',
-  hermes: 'openai',
-  'deepseek-harness': 'deepseek',
-  ccswitch: 'openai'
-}[props.tool]))
+const brandModel = computed(() => {
+  if (props.tool === 'claude') return 'claude-3-7-sonnet'
+  if (props.tool === 'codex') return 'codex'
+  if (props.tool === 'deepseek-harness') return 'deepseek'
+  return 'openai'
+})
 
 const localIcon = computed(() => localIcons[props.tool])
 </script>
@@ -73,9 +68,16 @@ const localIcon = computed(() => localIcons[props.tool])
 .official-tool-icon {
   display: block;
   flex: 0 0 auto;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .official-tool-icon-image {
   object-fit: contain;
 }
+
+.official-tool-icon-mark {
+  overflow: hidden;
+}
+
 </style>
