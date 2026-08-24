@@ -363,27 +363,16 @@ func TestListPlazaGroups_GroupImagePriceIgnoredForNonImageModes(t *testing.T) {
 	require.Nil(t, p.PerRequestPrice)
 }
 
-func TestListPlazaGroups_RepoErrorsPropagate(t *testing.T) {
+func TestListPlazaGroups_GroupRepoErrorsPropagate(t *testing.T) {
 	sentinel := errors.New("boom")
-	repo := &mockChannelRepository{
-		listAllFn: func(ctx context.Context) ([]Channel, error) { return nil, sentinel },
-	}
-	groups := []Group{{ID: 10, Name: "g", Platform: PlatformOpenAI, RateMultiplier: 1,
-		ModelsListConfig: GroupModelsListConfig{Enabled: true, Models: []string{"gpt-5"}}}}
-	svc := NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, nil, nil, nil)
-	out, err := svc.ListGroups(context.Background())
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	require.Len(t, out[0].Models, 1)
-
-	svc2 := NewModelPlazaService(
-		&mockChannelRepository{listAllFn: func(ctx context.Context) ([]Channel, error) { return nil, nil }},
+	svc := NewModelPlazaService(
+		&mockChannelRepository{listAllFn: func(ctx context.Context) ([]Channel, error) { return nil, errors.New("channelRepo.ListAll must not be called") }},
 		&stubGroupRepoForAvailable{listActiveErr: sentinel},
 		nil, nil, nil,
 	)
-	out2, err2 := svc2.ListGroups(context.Background())
-	require.Nil(t, out2)
-	require.ErrorIs(t, err2, sentinel)
+	out, err := svc.ListGroups(context.Background())
+	require.Nil(t, out)
+	require.ErrorIs(t, err, sentinel)
 }
 
 func TestListGroups_UsesEnabledGroupModelsWithoutChannels(t *testing.T) {

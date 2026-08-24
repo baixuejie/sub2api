@@ -220,7 +220,7 @@ func (s *ModelPlazaService) ListPlazaGroups(ctx context.Context) ([]PlazaGroup, 
 
 // fillDisplayPricing 把模型的展示定价换成实收口径：
 // token 模型取计费阶梯表（单价与档位均由真实计费函数得出），
-// 图片/按次模型（或阶梯表不可用时）沿用渠道定价与分组图片档位价。
+// 图片/按次模型（或阶梯表不可用时）沿用模型价卡与分组图片档位价。
 func (s *ModelPlazaService) fillDisplayPricing(ctx context.Context, m *PlazaModel, g *Group) {
 	s.fillDisplayPricingWithResolver(ctx, m, g, s.resolver)
 }
