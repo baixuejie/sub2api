@@ -155,12 +155,12 @@ func ProvideBatchImageHandler(
 // ProvideImageGenerationHandler keeps the extension dependent on the public
 // Images method rather than on OpenAIGatewayHandler's private implementation.
 func ProvideImageGenerationHandler(
-	channelService *service.ChannelService,
 	apiKeyService *service.APIKeyService,
+	modelPlazaService *service.ModelPlazaService,
 	settingRepository service.SettingRepository,
 	openAI *OpenAIGatewayHandler,
 ) *imagegenerationhandler.Handler {
-	policy := imagegenerationservice.NewService(apiKeyService, channelService, apiKeyService, settingRepository)
+	policy := imagegenerationservice.NewService(apiKeyService, modelPlazaService, apiKeyService, settingRepository)
 	return imagegenerationhandler.NewHandler(policy, openAI)
 }
 

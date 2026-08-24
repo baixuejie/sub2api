@@ -220,6 +220,12 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 	return out, nil
 }
 
+// ListPlazaGroups preserves the legacy extension contract while callers migrate
+// to the clearer ListGroups name.
+func (s *ModelPlazaService) ListPlazaGroups(ctx context.Context) ([]PlazaGroup, error) {
+	return s.ListGroups(ctx)
+}
+
 // fillDisplayPricing 把模型的展示定价换成实收口径：
 // token 模型取计费阶梯表（单价与档位均由真实计费函数得出），
 // 图片/按次模型（或阶梯表不可用时）沿用渠道定价与分组图片档位价。
