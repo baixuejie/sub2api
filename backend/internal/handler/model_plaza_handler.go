@@ -131,7 +131,9 @@ func (h *ModelPlazaHandler) Get(c *gin.Context) {
 	var allowedExclusive map[int64]struct{}
 	var userRates map[int64]float64
 	if authed {
-		allowedExclusive, err = h.apiKeyService.GetUserAllowedGroupIDSet(c.Request.Context(), subject.UserID)
+		// 使用上游新的可见性查询接口，但模型广场仍按定制规则隐藏所有专属分组。
+		// restrictPublicGroups 仅用于渠道绑定语义，不能改变模型广场的展示规则。
+		allowedExclusive, _, err = h.apiKeyService.GetUserGroupVisibility(c.Request.Context(), subject.UserID)
 		if err != nil {
 			// 可见性数据拿不到时不能静默降级成匿名视图（会错漏专属分组），直接报错。
 			response.ErrorFrom(c, err)
@@ -157,8 +159,8 @@ func (h *ModelPlazaHandler) Get(c *gin.Context) {
 	})
 }
 
-// filterPlazaVisibleGroups 按登录态裁剪分组可见性。
-// allowedExclusive == nil 表示匿名（仅非专属）；非 nil 表示登录（非专属 + 授权专属）。
+// filterPlazaVisibleGroups 按模型广场定制规则裁剪分组可见性。
+// 模型广场只展示公开分组，登录态和授权集合不改变该规则。
 func filterPlazaVisibleGroups(
 	groups []service.PlazaGroup,
 	allowedExclusive map[int64]struct{},
