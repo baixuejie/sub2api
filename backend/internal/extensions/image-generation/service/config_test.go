@@ -118,7 +118,7 @@ func TestImageGenerationConfigDefaultsAndNeverReturnsPlaintextKeys(t *testing.T)
 
 func TestImageGenerationConfigUsesTextGroupDefinitionWhenGroupIsNotInPlaza(t *testing.T) {
 	group := imageGroup(4, "gpt-plus", false)
-	group.ModelsListConfig = core.GroupModelsListConfig{
+	group.ModelAllowlist = core.GroupModelAllowlist{
 		Models: []string{"gpt-4.1-mini", "gpt-image-2", ""},
 	}
 	key := configTestKey(20, 42, 4, "Prompt", "sk-prompt-secret-1234", false)
@@ -145,7 +145,7 @@ func TestImageGenerationConfigUsesTextGroupDefinitionWhenGroupIsNotInPlaza(t *te
 
 func TestImageGenerationConfigFallsBackToGroupImageModelsWhenPlazaHasNoImages(t *testing.T) {
 	group := imageGroup(4, "legacy-images", true)
-	group.ModelsListConfig = core.GroupModelsListConfig{
+	group.ModelAllowlist = core.GroupModelAllowlist{
 		Models: []string{"gpt-4.1-mini", "gpt-image-1", "gpt-image-2"},
 	}
 	key := configTestKey(20, 42, 4, "Image", "sk-image-secret-1234", true)
@@ -198,7 +198,7 @@ func TestImageGenerationConfigUsesDefaultImageModelForEmptyLegacyGroup(t *testin
 
 func TestImageGenerationConfigDoesNotAddDefaultToNonEmptyTextOnlyList(t *testing.T) {
 	group := imageGroup(6, "text-only-list", true)
-	group.ModelsListConfig = core.GroupModelsListConfig{
+	group.ModelAllowlist = core.GroupModelAllowlist{
 		Enabled: true,
 		Models:  []string{"gpt-4.1-mini"},
 	}

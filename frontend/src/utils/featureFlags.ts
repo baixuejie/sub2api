@@ -104,6 +104,11 @@ export const FeatureFlags = {
     mode: 'opt-in',
     label: 'Available Channels',
   }),
+  subscription: defineFlag({
+    key: 'subscription_enabled',
+    mode: 'opt-out',
+    label: 'Subscription',
+  }),
   modelPlaza: defineFlag({
     key: 'model_plaza_enabled',
     mode: 'opt-in',
@@ -143,20 +148,25 @@ export type RegisteredFeatureFlag = keyof typeof FeatureFlags
  * `true`  → the feature is enabled (menu/route should render).
  * `false` → the feature is disabled (menu/route should hide).
  */
+export function isFeatureFlagEnabled(flag: FeatureFlagDefinition): boolean {
+  const appStore = useAppStore()
+  return resolveFeatureFlag(appStore.cachedPublicSettings, flag)
+}
+
+/**
+ * Pure resolver behind `isFeatureFlagEnabled`. Use it when the caller already
+ * holds a settings object (e.g. a store instance from `@/stores`) and should
+ * not reach for `useAppStore` itself — keeps views testable without Pinia.
+ */
 export function resolveFeatureFlag(
+  settings: Partial<PublicSettings> | null | undefined,
   flag: FeatureFlagDefinition,
-  settings: PublicSettings | null | undefined,
 ): boolean {
   const raw = settings?.[flag.key] as boolean | undefined
   if (typeof raw === 'boolean') return raw
   // Settings not yet loaded → fall back to the flag's declared mode:
   //   opt-out → visible by default, opt-in → hidden by default.
   return flag.mode === 'opt-out'
-}
-
-export function isFeatureFlagEnabled(flag: FeatureFlagDefinition): boolean {
-  const appStore = useAppStore()
-  return resolveFeatureFlag(flag, appStore.cachedPublicSettings)
 }
 
 /**
@@ -211,4 +221,10 @@ export function isChannelMonitorThroughputHidden(): boolean {
 export function isChannelMonitorQuotaVisible(): boolean {
   const appStore = useAppStore()
   return appStore.cachedPublicSettings?.channel_monitor_show_quota === true
+}
+
+/** Hide the user ranking tab on user-facing monitor v2. Admin always keeps it. */
+export function isChannelMonitorUserRankingHidden(): boolean {
+  const appStore = useAppStore()
+  return Boolean(appStore.cachedPublicSettings?.channel_monitor_hide_user_ranking)
 }

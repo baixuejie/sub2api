@@ -65,10 +65,10 @@ func configurePlazaGroupModels(channels []Channel, groups []Group) {
 				}
 			}
 		}
-		if group.ModelsListConfig.Enabled {
-			names = append(names, group.ModelsListConfig.Models...)
+		if group.ModelAllowlist.Enabled {
+			names = append(names, group.ModelAllowlist.Models...)
 		}
-		group.ModelsListConfig = GroupModelsListConfig{Enabled: len(names) > 0, Models: names}
+		group.ModelAllowlist = GroupModelAllowlist{Enabled: len(names) > 0, Models: names}
 	}
 }
 
@@ -396,8 +396,8 @@ func TestListGroups_UsesEnabledGroupModelsWithoutChannels(t *testing.T) {
 	}
 	groups := []Group{
 		{ID: 10, Name: "public", Description: "desc", Platform: PlatformOpenAI, RateMultiplier: 1,
-			ModelsListConfig: GroupModelsListConfig{Enabled: true, Models: []string{" gpt-5 ", "gpt-5", "", "gpt-image-2"}}},
-		{ID: 20, Name: "disabled", Platform: PlatformAnthropic, ModelsListConfig: GroupModelsListConfig{Models: []string{"claude-sonnet"}}},
+			ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{" gpt-5 ", "gpt-5", "", "gpt-image-2"}}},
+		{ID: 20, Name: "disabled", Platform: PlatformAnthropic, ModelAllowlist: GroupModelAllowlist{Models: []string{"claude-sonnet"}}},
 	}
 	svc := NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, nil, nil, nil)
 	out, err := svc.ListGroups(context.Background())

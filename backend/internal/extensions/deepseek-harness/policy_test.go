@@ -31,7 +31,7 @@ func TestDeepSeekHarnessNormalizeSiteURLsUsesSiteRoot(t *testing.T) {
 
 func TestDeepSeekHarnessGroupModelListControlsDefault(t *testing.T) {
 	key := activeOpenAIKey()
-	key.Group.ModelsListConfig = coreservice.GroupModelsListConfig{
+	key.Group.ModelAllowlist = coreservice.GroupModelAllowlist{
 		Enabled: true,
 		Models:  []string{" custom-model ", "custom-model", "gpt-5.5"},
 	}
@@ -47,7 +47,7 @@ func TestDeepSeekHarnessCompositeRequiresConfiguredModels(t *testing.T) {
 	_, err := buildInstallProfile(key, "https://example.com", "", "")
 	require.ErrorIs(t, err, errInvalidModel)
 
-	key.Group.ModelsListConfig = coreservice.GroupModelsListConfig{Enabled: true, Models: []string{"public-model"}}
+	key.Group.ModelAllowlist = coreservice.GroupModelAllowlist{Enabled: true, Models: []string{"public-model"}}
 	profile, err := buildInstallProfile(key, "https://example.com", "", "")
 	require.NoError(t, err)
 	require.Equal(t, "public-model", profile.SelectedModel)
@@ -56,7 +56,7 @@ func TestDeepSeekHarnessCompositeRequiresConfiguredModels(t *testing.T) {
 func TestDeepSeekHarnessAntigravityProtocolFollowsSelectedModel(t *testing.T) {
 	key := activeOpenAIKey()
 	key.Group.Platform = "antigravity"
-	key.Group.ModelsListConfig = coreservice.GroupModelsListConfig{
+	key.Group.ModelAllowlist = coreservice.GroupModelAllowlist{
 		Enabled: true,
 		Models:  []string{"claude-opus-5", "gemini-3.1-pro-preview"},
 	}

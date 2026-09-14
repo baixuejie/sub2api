@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // PlazaOfficialPricing 模型广场展示用的官方参考价（USD per token），与计费同源：
@@ -133,7 +134,7 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 	for _, gid := range order {
 		pg := byGroup[gid]
 		g := groupEnt[gid]
-		cfg := normalizeGroupModelsListConfig(g.ModelsListConfig)
+		cfg := normalizePlazaModelAllowlist(g.ModelAllowlist)
 		if !cfg.Enabled || len(cfg.Models) == 0 {
 			continue
 		}
@@ -189,6 +190,33 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 }
 
 // resolverWithoutChannels returns a resolver suitable for the model plaza. A
+// normalizePlazaModelAllowlist 归一化广场展示用的分组白名单：条目 TrimSpace、
+// 去空、按原文精确去重并保序（与展示语义一致，不做大小写折叠）。仅供广场
+// 只读展示使用；管理端提交入口的校验见 normalizeGroupModelAllowlist。
+func normalizePlazaModelAllowlist(cfg GroupModelAllowlist) GroupModelAllowlist {
+	out := GroupModelAllowlist{Enabled: cfg.Enabled}
+	if len(cfg.Models) == 0 {
+		return out
+	}
+	seen := make(map[string]struct{}, len(cfg.Models))
+	out.Models = make([]string, 0, len(cfg.Models))
+	for _, model := range cfg.Models {
+		model = strings.TrimSpace(model)
+		if model == "" {
+			continue
+		}
+		if _, ok := seen[model]; ok {
+			continue
+		}
+		seen[model] = struct{}{}
+		out.Models = append(out.Models, model)
+	}
+	if len(out.Models) == 0 {
+		out.Models = nil
+	}
+	return out
+}
+
 // resolver normally consults ChannelService when a group card is absent; that
 // lookup would make this read path depend on channels again. Keep the billing
 // resolver and its catalog, but remove the optional channel service.

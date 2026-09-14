@@ -325,7 +325,7 @@ func TestDeepSeekHarnessRejectsUnavailableOrForeignKeys(t *testing.T) {
 
 func TestDeepSeekHarnessProfileRejectsUnavailableModel(t *testing.T) {
 	key := activeOpenAIKey()
-	key.Group.ModelsListConfig = coreservice.GroupModelsListConfig{
+	key.Group.ModelAllowlist = coreservice.GroupModelAllowlist{
 		Enabled: true,
 		Models:  []string{"gpt-5.5"},
 	}

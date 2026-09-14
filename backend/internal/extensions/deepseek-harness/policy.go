@@ -121,10 +121,10 @@ func buildInstallProfile(key *coreservice.APIKey, rawBaseURL, fallbackOrigin, se
 }
 
 func hasConfiguredModels(group *coreservice.Group) bool {
-	if group == nil || !group.ModelsListConfig.Enabled {
+	if group == nil || !group.ModelAllowlist.Enabled {
 		return false
 	}
-	for _, model := range group.ModelsListConfig.Models {
+	for _, model := range group.ModelAllowlist.Models {
 		if strings.TrimSpace(model) != "" {
 			return true
 		}
@@ -133,9 +133,9 @@ func hasConfiguredModels(group *coreservice.Group) bool {
 }
 
 func resolveModels(group *coreservice.Group, fallback string) []ModelOption {
-	ids := make([]string, 0, len(group.ModelsListConfig.Models)+1)
-	if group.ModelsListConfig.Enabled {
-		ids = append(ids, group.ModelsListConfig.Models...)
+	ids := make([]string, 0, len(group.ModelAllowlist.Models)+1)
+	if group.ModelAllowlist.Enabled {
+		ids = append(ids, group.ModelAllowlist.Models...)
 	}
 	if len(ids) == 0 {
 		ids = append(ids, fallback)

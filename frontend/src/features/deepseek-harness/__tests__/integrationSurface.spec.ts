@@ -38,7 +38,7 @@ describe('DeepSeek Harness extension integration surface', () => {
     expect(registry).toContain("id: 'cc-switch'")
     expect(registry).toContain("id: 'deepseek-harness'")
     expect(registry).toContain('actionComponent: DeepSeekHarnessAction')
-    expect(registry).toContain('resolveFeatureFlag(FeatureFlags.deepSeekHarness, publicSettings)')
+    expect(registry).toContain('resolveFeatureFlag(publicSettings, FeatureFlags.deepSeekHarness)')
   })
 
   it('registers the public setting as a fail-closed opt-in feature flag', () => {
@@ -47,11 +47,14 @@ describe('DeepSeek Harness extension integration surface', () => {
     expect(registry).toContain('deepSeekHarness: defineFlag({')
     expect(registry).toContain("key: 'deepseek_harness_enabled'")
     expect(registry).toContain("mode: 'opt-in'")
-    expect(resolveFeatureFlag(FeatureFlags.deepSeekHarness, undefined)).toBe(false)
+    expect(resolveFeatureFlag(undefined, FeatureFlags.deepSeekHarness)).toBe(false)
     expect(
-      resolveFeatureFlag(FeatureFlags.deepSeekHarness, {
-        deepseek_harness_enabled: true
-      } as PublicSettings)
+      resolveFeatureFlag(
+        {
+          deepseek_harness_enabled: true
+        } as PublicSettings,
+        FeatureFlags.deepSeekHarness
+      )
     ).toBe(true)
   })
 

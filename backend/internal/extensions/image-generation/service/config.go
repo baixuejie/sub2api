@@ -240,7 +240,7 @@ func (s *Service) buildConfigCatalog(ctx context.Context, userID int64) (*config
 		// A text-only OpenAI group may have no channel-backed plaza models. Its
 		// saved group model definition is still usable for prompt optimization.
 		if len(promptSeen) == 0 && !group.AllowImageGeneration {
-			for _, name := range group.ModelsListConfig.Models {
+			for _, name := range group.ModelAllowlist.Models {
 				name = strings.TrimSpace(name)
 				if name == "" || core.IsGPTImageGenerationModel(name) {
 					continue

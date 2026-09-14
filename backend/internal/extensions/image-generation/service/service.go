@@ -282,7 +282,7 @@ func legacyImageModelFallback(group *core.Group) []string {
 	}
 	seen := make(map[string]struct{})
 	models := make([]string, 0)
-	for _, raw := range group.ModelsListConfig.Models {
+	for _, raw := range group.ModelAllowlist.Models {
 		name := strings.TrimSpace(raw)
 		if name == "" || !core.IsGPTImageGenerationModel(name) {
 			continue
@@ -294,7 +294,7 @@ func legacyImageModelFallback(group *core.Group) []string {
 		seen[key] = struct{}{}
 		models = append(models, name)
 	}
-	if len(models) == 0 && groupModelListIsEmpty(group.ModelsListConfig.Models) {
+	if len(models) == 0 && groupModelListIsEmpty(group.ModelAllowlist.Models) {
 		return []string{defaultImageModel}
 	}
 	return models

@@ -52,7 +52,7 @@ export const localToolRegistry: readonly LocalToolDefinition[] = [
     hoverClass: 'hover:bg-cyan-50 dark:hover:bg-cyan-900/20',
     actionComponent: DeepSeekHarnessAction,
     isVisible: ({ publicSettings }) =>
-      resolveFeatureFlag(FeatureFlags.deepSeekHarness, publicSettings),
+      resolveFeatureFlag(publicSettings, FeatureFlags.deepSeekHarness),
     isDisabled: ({ apiKey }) => apiKey.status !== 'active',
     actionProps: ({ apiKey }) => ({ apiKeyId: apiKey.id, status: apiKey.status })
   }

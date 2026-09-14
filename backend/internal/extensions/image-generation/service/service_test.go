@@ -97,7 +97,7 @@ func TestImageGenerationServiceGetOptionsFallsBackForLegacyImageGroup(t *testing
 
 func TestImageGenerationServiceGetOptionsSupplementsGroupImageModels(t *testing.T) {
 	group := imageGroup(8, "configured-images", true)
-	group.ModelsListConfig = core.GroupModelsListConfig{
+	group.ModelAllowlist = core.GroupModelAllowlist{
 		Enabled: true,
 		Models:  []string{"gpt-4.1-mini", "gpt-image-1", "gpt-image-2"},
 	}
