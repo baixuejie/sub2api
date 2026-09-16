@@ -201,13 +201,11 @@ export default {
         developer: {
           title: 'Freedom for developers',
           description: 'Use familiar OpenAI and Anthropic SDKs and connect existing projects by changing one endpoint.',
-          points: ['OpenAI / Anthropic API compatible', 'Clear request and usage logs', 'Consistent local and production setup'],
           action: 'Read developer docs'
         },
         enterprise: {
           title: 'Control for teams',
           description: 'Manage access and budgets by member, project, and API key while keeping clear boundaries as you scale.',
-          points: ['Team members and role permissions', 'Quotas, budgets, and audit records', 'Multi-channel routing and failover'],
           action: 'Talk to our team'
         }
       },

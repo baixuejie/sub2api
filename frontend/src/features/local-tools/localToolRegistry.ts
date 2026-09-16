@@ -18,7 +18,7 @@ export interface LocalToolContext {
 export interface LocalToolDefinition {
   id: string
   labelKey: ToolCopyKey
-  descriptionKey: ToolCopyKey
+  descriptionCopyKey: ToolCopyKey
   icon: 'upload' | 'download'
   iconClass: string
   hoverClass: string
@@ -34,7 +34,7 @@ export const localToolRegistry: readonly LocalToolDefinition[] = [
   {
     id: 'cc-switch',
     labelKey: 'ccSwitch',
-    descriptionKey: 'ccSwitchDescription',
+    descriptionCopyKey: 'ccSwitchDescription',
     icon: 'upload',
     iconClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
     hoverClass: 'hover:bg-blue-50 dark:hover:bg-blue-900/20',
@@ -46,7 +46,7 @@ export const localToolRegistry: readonly LocalToolDefinition[] = [
   {
     id: 'deepseek-harness',
     labelKey: 'deepSeekHarness',
-    descriptionKey: 'deepSeekHarnessDescription',
+    descriptionCopyKey: 'deepSeekHarnessDescription',
     icon: 'download',
     iconClass: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
     hoverClass: 'hover:bg-cyan-50 dark:hover:bg-cyan-900/20',

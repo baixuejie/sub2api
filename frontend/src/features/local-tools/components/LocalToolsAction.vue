@@ -55,7 +55,7 @@
           tabindex="-1"
           :data-tool-id="tool.id"
           :disabled="tool.isDisabled(toolContext)"
-          :title="tool.isDisabled(toolContext) ? copy.unavailable : copy[tool.descriptionKey]"
+          :title="tool.isDisabled(toolContext) ? copy.unavailable : copy[tool.descriptionCopyKey]"
           @click="selectTool(tool)"
         >
           <span
@@ -69,7 +69,7 @@
               {{ copy[tool.labelKey] }}
             </span>
             <span class="block truncate text-xs text-gray-500 dark:text-dark-400">
-              {{ copy[tool.descriptionKey] }}
+              {{ copy[tool.descriptionCopyKey] }}
             </span>
           </span>
         </button>

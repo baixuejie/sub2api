@@ -165,11 +165,6 @@ export default {
             title: '创建账号',
             description: '注册 Sub2API，进入控制台创建你的第一个 API Key。'
           },
-          connect: {
-            number: '01',
-            title: '创建账号并连接',
-            description: '注册后进入控制台，创建 API Key 并连接需要使用的模型渠道。'
-          },
           configure: {
             number: '02',
             title: '配置你的工作流',
@@ -206,13 +201,11 @@ export default {
         developer: {
           title: '给开发者的自由度',
           description: '兼容主流 OpenAI 与 Anthropic SDK，统一端点即可接入现有项目。',
-          points: ['OpenAI / Anthropic API 兼容', '清晰的请求与用量日志', '本地开发与生产配置一致'],
           action: '阅读开发文档'
         },
         enterprise: {
           title: '给团队的控制力',
           description: '按成员、项目与 API Key 管理权限和预算，在扩展规模的同时保持清晰边界。',
-          points: ['团队成员与角色权限', '配额、预算与审计记录', '多渠道路由与故障切换'],
           action: '联系团队顾问'
         }
       },
