@@ -238,6 +238,7 @@ const mountView = async () => {
         SearchInput: SearchInputStub,
         Icon: IconStub,
         UseKeyModal: true,
+        LocalToolsAction: true,
         BulkEditKeysModal: true,
         EndpointPopover: true,
         GroupBadge: true,
