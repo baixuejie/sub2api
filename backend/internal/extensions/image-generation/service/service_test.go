@@ -76,7 +76,7 @@ func TestImageGenerationServiceGetOptionsFiltersGroupsAndModels(t *testing.T) {
 	require.Equal(t, 9, options.Groups[0].Models[0].MaxN)
 	require.Equal(t, []string{"auto", "1024x1024", "1536x1024", "1024x1536", "2048x2048", "3072x2048", "2048x3072"}, options.Groups[0].Models[0].Sizes)
 	require.NotNil(t, options.Groups[0].Models[0].CustomSize)
-	require.Equal(t, gptImage2MaxEdge, options.Groups[0].Models[0].CustomSize.MaxEdge)
+	require.Equal(t, extendedImageMaxEdge, options.Groups[0].Models[0].CustomSize.MaxEdge)
 	require.Equal(t, "auto", options.Defaults.Size)
 }
 
@@ -92,7 +92,19 @@ func TestImageGenerationServiceGetOptionsFallsBackForLegacyImageGroup(t *testing
 	require.NoError(t, err)
 	require.Len(t, options.Groups, 1)
 	require.Equal(t, int64(7), options.Groups[0].ID)
-	require.Equal(t, defaultImageModel, options.Groups[0].Models[0].Name)
+	// 空白名单不再写死 gpt-image-2，而是枚举内置目录里的全部 GPT 图片模型，
+	// 按名称升序（末位即最新一代）。
+	require.Equal(t, defaultImageModels(), modelNamesOf(options.Groups[0].Models))
+	require.Equal(t, "gpt-image-1", options.Groups[0].Models[0].Name)
+	require.Equal(t, "gpt-image-2.5-sunburst", options.Groups[0].Models[len(options.Groups[0].Models)-1].Name)
+}
+
+func modelNamesOf(models []ModelOption) []string {
+	names := make([]string, 0, len(models))
+	for _, model := range models {
+		names = append(names, model.Name)
+	}
+	return names
 }
 
 func TestImageGenerationServiceGetOptionsSupplementsGroupImageModels(t *testing.T) {
@@ -172,6 +184,45 @@ func TestImageGenerationServiceRejectsKeyThatChangesStateAfterList(t *testing.T)
 	svc := newTestService(keys)
 	_, err := svc.Prepare(context.Background(), 42, GenerationRequest{GroupID: 1, Model: "gpt-image-2", Prompt: "draw"})
 	require.ErrorIs(t, err, ErrImageAPIKeyMissing)
+}
+
+func TestImageModelVersionParsesLeadingVersion(t *testing.T) {
+	cases := map[string]float64{
+		"gpt-image-1":              1,
+		"gpt-image-1.5":            1.5,
+		"gpt-image-2":              2,
+		"gpt-image-2.5-flare":      2.5,
+		"gpt-image-2-2026-04-21":   2,
+		"  GPT-IMAGE-2.5-Sunburst": 2.5,
+		"gpt-image-":               0,
+		"gpt-4.1-mini":             0,
+		"":                         0,
+	}
+	for model, want := range cases {
+		require.Equal(t, want, imageModelVersion(model), "model=%q", model)
+	}
+}
+
+func TestImageGenerationServiceGetOptionsExtendsSizesFromVersionTwoOn(t *testing.T) {
+	svc := NewService(
+		&fakeGroups{groups: []core.Group{imageGroup(9, "multi-gen", true)}},
+		&fakePlaza{groups: []core.PlazaGroup{imagePlazaGroup(9, "gpt-image-1.5", "gpt-image-2.5-flare")}},
+		&fakeKeys{},
+	)
+
+	options, err := svc.GetOptions(context.Background(), 42)
+	require.NoError(t, err)
+	require.Len(t, options.Groups, 1)
+	byName := make(map[string]ModelOption, len(options.Groups[0].Models))
+	for _, model := range options.Groups[0].Models {
+		byName[model.Name] = model
+	}
+	// 1.5 仍是旧尺寸且无自定义尺寸约束。
+	require.Equal(t, legacyImageSizes, byName["gpt-image-1.5"].Sizes)
+	require.Nil(t, byName["gpt-image-1.5"].CustomSize)
+	// 2.5 走扩展尺寸与自定义尺寸约束。
+	require.Equal(t, extendedImagePresetSizes, byName["gpt-image-2.5-flare"].Sizes)
+	require.NotNil(t, byName["gpt-image-2.5-flare"].CustomSize)
 }
 
 func int64Ptr(v int64) *int64 { return &v }

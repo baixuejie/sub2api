@@ -3,11 +3,13 @@ package imagegeneration
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	core "github.com/Wei-Shaw/sub2api/internal/service"
 )
@@ -22,11 +24,15 @@ const (
 	defaultBackground   = "auto"
 	defaultModeration   = "auto"
 
-	gptImage2MinPixels    = 655360
-	gptImage2MaxPixels    = 8294400
-	gptImage2MaxEdge      = 3840
-	gptImage2EdgeMultiple = 16
-	gptImage2MaxAspect    = 3.0
+	// gpt-image-2 及以后（版本 >= minExtendedSizeVersion）支持扩展预设尺寸与
+	// 自定义尺寸约束；更早的 gpt-image-1 / 1.5 仍走 legacyImageSizes。
+	minExtendedSizeVersion = 2.0
+
+	extendedImageMinPixels    = 655360
+	extendedImageMaxPixels    = 8294400
+	extendedImageMaxEdge      = 3840
+	extendedImageEdgeMultiple = 16
+	extendedImageMaxAspect    = 3.0
 )
 
 var (
@@ -41,12 +47,12 @@ var (
 )
 
 var (
-	legacyImageSizes        = []string{"auto", "1024x1024", "1536x1024", "1024x1536"}
-	gptImage2PresetSizes    = []string{"auto", "1024x1024", "1536x1024", "1024x1536", "2048x2048", "3072x2048", "2048x3072"}
-	allowedImageQualities   = []string{"auto", "low", "medium", "high"}
-	allowedOutputFormats    = []string{"png", "jpeg", "webp"}
-	allowedBackgrounds      = []string{"auto", "opaque", "transparent"}
-	allowedModerationLevels = []string{"auto", "low"}
+	legacyImageSizes         = []string{"auto", "1024x1024", "1536x1024", "1024x1536"}
+	extendedImagePresetSizes = []string{"auto", "1024x1024", "1536x1024", "1024x1536", "2048x2048", "3072x2048", "2048x3072"}
+	allowedImageQualities    = []string{"auto", "low", "medium", "high"}
+	allowedOutputFormats     = []string{"png", "jpeg", "webp"}
+	allowedBackgrounds       = []string{"auto", "opaque", "transparent"}
+	allowedModerationLevels  = []string{"auto", "low"}
 )
 
 // GroupProvider is the stable read-only surface used to apply user group permissions.
@@ -207,14 +213,14 @@ func (s *Service) GetOptions(ctx context.Context, userID int64) (Options, error)
 				MaxN:                maxGenerationCount,
 				SupportsCompression: true,
 			}
-			if isGPTImage2(name) {
-				modelOption.Sizes = cloneStrings(gptImage2PresetSizes)
+			if supportsExtendedImageSizes(name) {
+				modelOption.Sizes = cloneStrings(extendedImagePresetSizes)
 				modelOption.CustomSize = &CustomSizeConstraints{
-					MinPixels:      gptImage2MinPixels,
-					MaxPixels:      gptImage2MaxPixels,
-					MaxEdge:        gptImage2MaxEdge,
-					EdgeMultiple:   gptImage2EdgeMultiple,
-					MaxAspectRatio: gptImage2MaxAspect,
+					MinPixels:      extendedImageMinPixels,
+					MaxPixels:      extendedImageMaxPixels,
+					MaxEdge:        extendedImageMaxEdge,
+					EdgeMultiple:   extendedImageEdgeMultiple,
+					MaxAspectRatio: extendedImageMaxAspect,
 				}
 			}
 			models = append(models, modelOption)
@@ -274,8 +280,9 @@ func groupModelListIsEmpty(models []string) bool {
 }
 
 // legacyImageModelFallback returns image models for an image-enabled OpenAI
-// group whose plaza entry has no image models. An empty saved list represents
-// a pre-models_list_config group, whose native image default is gpt-image-2.
+// group whose plaza entry has no image models. An empty saved list represents a
+// group predating configurable model lists; fall back to the built-in OpenAI
+// catalog so newly released GPT image models show up without a code change.
 func legacyImageModelFallback(group *core.Group) []string {
 	if group == nil || !group.AllowImageGeneration || group.Platform != core.PlatformOpenAI {
 		return nil
@@ -295,8 +302,21 @@ func legacyImageModelFallback(group *core.Group) []string {
 		models = append(models, name)
 	}
 	if len(models) == 0 && groupModelListIsEmpty(group.ModelAllowlist.Models) {
-		return []string{defaultImageModel}
+		return defaultImageModels()
 	}
+	return models
+}
+
+// defaultImageModels 返回内置 OpenAI 目录里的全部 GPT 图片模型，按名称升序，
+// 末位即当前最新一代（调用方据此把最新模型作为默认首选）。
+func defaultImageModels() []string {
+	models := make([]string, 0, len(openai.DefaultModels))
+	for _, model := range openai.DefaultModels {
+		if core.IsGPTImageGenerationModel(model.ID) {
+			models = append(models, model.ID)
+		}
+	}
+	sort.Strings(models)
 	return models
 }
 
@@ -445,12 +465,32 @@ func containsFold(values []string, value string) bool {
 	return false
 }
 
-func isGPTImage2(model string) bool {
-	return strings.EqualFold(strings.TrimSpace(model), "gpt-image-2")
+// imageModelVersion 解析 `gpt-image-<主版本>[.<次版本>]` 的版本号；无法解析时返回 0。
+// 形如 `gpt-image-2.5-flare`、`gpt-image-2-2026-04-21` 的版本段分别解析为 2.5 与 2。
+func imageModelVersion(model string) float64 {
+	rest, ok := strings.CutPrefix(strings.ToLower(strings.TrimSpace(model)), "gpt-image-")
+	if !ok {
+		return 0
+	}
+	end := 0
+	for end < len(rest) && (rest[end] == '.' || (rest[end] >= '0' && rest[end] <= '9')) {
+		end++
+	}
+	version, err := strconv.ParseFloat(strings.Trim(rest[:end], "."), 64)
+	if err != nil {
+		return 0
+	}
+	return version
+}
+
+// supportsExtendedImageSizes 判断模型是否支持扩展预设尺寸与自定义尺寸约束：
+// gpt-image-2 及以后为真，gpt-image-1 / 1.5 或未知模型为假。
+func supportsExtendedImageSizes(model string) bool {
+	return imageModelVersion(model) >= minExtendedSizeVersion
 }
 
 func validImageSize(model, size string) bool {
-	if !isGPTImage2(model) {
+	if !supportsExtendedImageSizes(model) {
 		return containsFold(legacyImageSizes, size)
 	}
 	if strings.EqualFold(size, "auto") {
@@ -466,18 +506,18 @@ func validImageSize(model, size string) bool {
 	if widthErr != nil || heightErr != nil || width <= 0 || height <= 0 {
 		return false
 	}
-	if width%gptImage2EdgeMultiple != 0 || height%gptImage2EdgeMultiple != 0 || width > gptImage2MaxEdge || height > gptImage2MaxEdge {
+	if width%extendedImageEdgeMultiple != 0 || height%extendedImageEdgeMultiple != 0 || width > extendedImageMaxEdge || height > extendedImageMaxEdge {
 		return false
 	}
 	pixels := int64(width) * int64(height)
-	if pixels < gptImage2MinPixels || pixels > gptImage2MaxPixels {
+	if pixels < extendedImageMinPixels || pixels > extendedImageMaxPixels {
 		return false
 	}
 	longEdge, shortEdge := width, height
 	if longEdge < shortEdge {
 		longEdge, shortEdge = shortEdge, longEdge
 	}
-	return float64(longEdge)/float64(shortEdge) <= gptImage2MaxAspect
+	return float64(longEdge)/float64(shortEdge) <= extendedImageMaxAspect
 }
 
 func cloneStrings(values []string) []string {

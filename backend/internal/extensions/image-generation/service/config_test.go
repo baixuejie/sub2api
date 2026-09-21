@@ -173,7 +173,7 @@ func TestImageGenerationConfigFallsBackToGroupImageModelsWhenPlazaHasNoImages(t 
 	require.True(t, options.APIKeys[0].ImageEnabled)
 }
 
-func TestImageGenerationConfigUsesDefaultImageModelForEmptyLegacyGroup(t *testing.T) {
+func TestImageGenerationConfigEnumeratesCatalogForEmptyLegacyGroup(t *testing.T) {
 	group := imageGroup(5, "old-image-group", true)
 	key := configTestKey(21, 42, 5, "Image", "sk-image-secret-5678", true)
 	keys := &configFakeKeys{
@@ -190,9 +190,11 @@ func TestImageGenerationConfigUsesDefaultImageModelForEmptyLegacyGroup(t *testin
 	options, err := svc.GetConfigOptions(context.Background(), 42)
 	require.NoError(t, err)
 	require.Len(t, options.ImageGroups, 1)
-	require.Equal(t, []ConfigModelOption{{Name: defaultImageModel}}, options.ImageGroups[0].Models)
+	// 空白名单枚举内置目录并升序排列，末位是最新一代。
+	require.Equal(t, "gpt-image-1", options.ImageGroups[0].Models[0].Name)
+	require.Equal(t, "gpt-image-2.5-sunburst", options.ImageGroups[0].Models[len(options.ImageGroups[0].Models)-1].Name)
 	require.Equal(t, int64(5), options.Config.ImageGroupID)
-	require.Equal(t, defaultImageModel, options.Config.ImageModel)
+	require.Equal(t, "gpt-image-2.5-sunburst", options.Config.ImageModel)
 	require.Equal(t, int64(21), options.Config.ImageAPIKeyID)
 }
 
@@ -264,6 +266,47 @@ func TestImageGenerationConfigRejectsInvalidCountAndCrossGroupKey(t *testing.T) 
 	})
 	require.ErrorIs(t, err, ErrConfigInvalid)
 	require.Empty(t, settings.setRaw)
+}
+
+// newNewestModelTestService 构造一个分组：模型列表含多代 gpt-image，
+// 用于验证默认首选落在最新一代（名称升序末位）。
+func newNewestModelTestService(settings *configFakeSettings) *Service {
+	group := imageGroup(4, "openai-images", true)
+	key := configTestKey(23, 42, 4, "Image", "sk-image-secret-9012", true)
+	keys := &configFakeKeys{
+		listed:   []core.APIKey{{ID: key.ID, UserID: key.UserID, GroupID: key.GroupID, Status: key.Status}},
+		hydrated: map[int64]*core.APIKey{key.ID: key},
+	}
+	return NewService(
+		&fakeGroups{groups: []core.Group{group}},
+		&fakePlaza{groups: []core.PlazaGroup{imagePlazaGroup(4, "gpt-image-1", "gpt-image-2", "gpt-image-2.5-flare")}},
+		keys,
+		settings,
+	)
+}
+
+func TestImageGenerationConfigPrefersNewestImageModelWhenStoredIsStale(t *testing.T) {
+	settings := &configFakeSettings{values: map[string]string{
+		userSettingKey(42): `{"version":1,"image_group_id":4,"image_model":"gpt-image-0.9","image_api_key_id":23,"default_size":"1024x1024","default_n":1}`,
+	}}
+	svc := newNewestModelTestService(settings)
+
+	options, err := svc.GetConfigOptions(context.Background(), 42)
+	require.NoError(t, err)
+	require.Equal(t, "gpt-image-2.5-flare", options.Config.ImageModel)
+	require.Equal(t, int64(4), options.Config.ImageGroupID)
+}
+
+func TestImageGenerationConfigKeepsValidStoredImageModel(t *testing.T) {
+	settings := &configFakeSettings{values: map[string]string{
+		userSettingKey(42): `{"version":1,"image_group_id":4,"image_model":"gpt-image-2","image_api_key_id":23,"default_size":"1024x1024","default_n":1}`,
+	}}
+	svc := newNewestModelTestService(settings)
+
+	options, err := svc.GetConfigOptions(context.Background(), 42)
+	require.NoError(t, err)
+	// 存量配置仍然有效时不被改写：偏好最新只作用于失效/首次配置。
+	require.Equal(t, "gpt-image-2", options.Config.ImageModel)
 }
 
 func TestImageGenerationConfigRejectsHydratedKeyWithDifferentID(t *testing.T) {
