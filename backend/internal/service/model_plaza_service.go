@@ -189,7 +189,6 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 	return out, nil
 }
 
-// resolverWithoutChannels returns a resolver suitable for the model plaza. A
 // normalizePlazaModelAllowlist 归一化广场展示用的分组白名单：条目 TrimSpace、
 // 去空、按原文精确去重并保序（与展示语义一致，不做大小写折叠）。仅供广场
 // 只读展示使用；管理端提交入口的校验见 normalizeGroupModelAllowlist。
@@ -254,6 +253,9 @@ func (s *ModelPlazaService) fillDisplayPricing(ctx context.Context, m *PlazaMode
 }
 
 func (s *ModelPlazaService) fillDisplayPricingWithResolver(ctx context.Context, m *PlazaModel, g *Group, resolver *ModelPricingResolver) {
+	if groupPricing := matchGroupModelPricing(g, m.Name); groupPricing != nil {
+		m.Pricing = groupPricing
+	}
 	// BillingService's catalog is token-oriented and does not retain LiteLLM's
 	// billing mode. Preserve an explicitly synthesized image/per-request card;
 	// only token (or unspecified) entries should go through the context probe.
@@ -265,7 +267,7 @@ func (s *ModelPlazaService) fillDisplayPricingWithResolver(ctx context.Context, 
 			Platform: m.Platform,
 		})
 		if err == nil && sched != nil && len(sched.Tiers) > 0 {
-			m.Pricing = withDefaultMaxReasoningEffortMultiplier(plazaPricingFromSchedule(m.Pricing, sched), m.Name)
+			m.Pricing = plazaPricingFromSchedule(m.Pricing, sched)
 			if len(sched.Tiers) > 1 {
 				m.LongContextBasis = sched.Basis
 			}
@@ -273,20 +275,7 @@ func (s *ModelPlazaService) fillDisplayPricingWithResolver(ctx context.Context, 
 			return
 		}
 	}
-	m.Pricing = withDefaultMaxReasoningEffortMultiplier(plazaImageDisplayPricing(m.Pricing, g), m.Name)
-}
-
-func withDefaultMaxReasoningEffortMultiplier(pricing *ChannelModelPricing, model string) *ChannelModelPricing {
-	if pricing == nil || pricing.MaxReasoningEffortMultiplier != nil {
-		return pricing
-	}
-	multiplier := defaultMaxReasoningEffortMultiplier(model)
-	if multiplier == nil {
-		return pricing
-	}
-	cloned := pricing.Clone()
-	cloned.MaxReasoningEffortMultiplier = multiplier
-	return &cloned
+	m.Pricing = plazaImageDisplayPricing(m.Pricing, g)
 }
 
 // plazaPricingFromSchedule 把阶梯表压成展示用的 ChannelModelPricing：
@@ -297,7 +286,7 @@ func plazaPricingFromSchedule(raw *ChannelModelPricing, sched *ContextPricingSch
 		out.ImageInputPrice = raw.ImageInputPrice
 		out.ImageOutputPrice = raw.ImageOutputPrice
 		out.PerRequestPrice = raw.PerRequestPrice
-		out.MaxReasoningEffortMultiplier = raw.MaxReasoningEffortMultiplier
+		out.ReasoningEffortMultipliers = reasoningEffortMultipliersFromPricing(raw)
 	}
 	first := sched.Tiers[0]
 	out.InputPrice = first.Input
