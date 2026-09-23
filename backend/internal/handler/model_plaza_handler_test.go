@@ -228,10 +228,7 @@ func TestFilterPlazaVisibleGroups_SubscribedExclusiveGroup(t *testing.T) {
 		{ID: 43, IsExclusive: true, SubscriptionType: "subscription"},
 		{ID: 44, IsExclusive: true, SubscriptionType: "standard"},
 	}
-	require.Empty(t, filterPlazaVisibleGroups(groups, nil, false))
-	for _, restricted := range []bool{false, true} {
-		visible := filterPlazaVisibleGroups(groups, map[int64]struct{}{42: {}}, restricted)
-		require.Len(t, visible, 1)
-		require.Equal(t, int64(42), visible[0].ID)
-	}
+	// 本地定制:专属分组(含订阅型)一律不进入模型广场,授权集合不改变该规则。
+	require.Empty(t, filterPlazaVisibleGroups(groups, nil))
+	require.Empty(t, filterPlazaVisibleGroups(groups, map[int64]struct{}{42: {}}))
 }
