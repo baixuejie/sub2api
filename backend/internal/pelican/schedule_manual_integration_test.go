@@ -121,8 +121,8 @@ func TestPelicanPostgresManualConcurrencyCooldownAndSchedule(t *testing.T) {
 		t.Fatalf("missing cooldown: %v", err)
 	}
 	after, err := repo.Config(ctx)
-	if err != nil || after.Enabled || after.NextRunAt != nil || after.Sequence != before.Sequence || after.Revision != before.Revision {
-		t.Fatalf("manual modified schedule: %+v %v", after, err)
+	if err != nil || after.Enabled || after.NextRunAt != nil || after.Sequence != before.Sequence+1 || after.Revision != before.Revision {
+		t.Fatalf("manual must rotate exactly once without changing schedule: %+v %v", after, err)
 	}
 	second, err := repo.ClaimManual(ctx, now.Add(ManualRunCooldown))
 	if err != nil || second == nil {
@@ -153,6 +153,60 @@ func TestPelicanPostgresManualDoesNotConsumeScheduledBoundary(t *testing.T) {
 	scheduled, err := repo.Claim(ctx, now)
 	if err != nil || scheduled == nil || scheduled.ID == manual.ID {
 		t.Fatalf("manual consumed automatic time slot: %+v %v", scheduled, err)
+	}
+	var manualTopic, scheduledTopic string
+	if err = repo.db.QueryRow(`SELECT topic_id FROM pelican_runs WHERE id=$1`, manual.ID).Scan(&manualTopic); err != nil {
+		t.Fatal(err)
+	}
+	if err = repo.db.QueryRow(`SELECT topic_id FROM pelican_runs WHERE id=$1`, scheduled.ID).Scan(&scheduledTopic); err != nil {
+		t.Fatal(err)
+	}
+	if manualTopic != topics[0].ID || scheduledTopic != topics[1].ID {
+		t.Fatalf("manual and scheduled rotation diverged: %s -> %s", manualTopic, scheduledTopic)
+	}
+}
+
+func TestPelicanPostgresManualTopicRotationAndFixedMode(t *testing.T) {
+	for _, mode := range []string{"rotate", "fixed"} {
+		t.Run(mode, func(t *testing.T) {
+			repo := testRepository(t)
+			ctx := context.Background()
+			now := time.Now().UTC()
+			if _, err := repo.db.Exec(`UPDATE pelican_config SET api_key_encrypted='encrypted:key',topic_mode=$1,fixed_topic_id=$2`, mode, topics[2].ID); err != nil {
+				t.Fatal(err)
+			}
+			for i := 0; i < 4; i++ {
+				claim, err := repo.ClaimManual(ctx, now.Add(time.Duration(i)*ManualRunCooldown))
+				if err != nil {
+					t.Fatal(err)
+				}
+				var topic string
+				if err = repo.db.QueryRow(`SELECT topic_id FROM pelican_runs WHERE id=$1`, claim.ID).Scan(&topic); err != nil {
+					t.Fatal(err)
+				}
+				want := topics[2].ID
+				if mode == "rotate" {
+					want = topics[i%len(topics)].ID
+				}
+				if topic != want {
+					t.Fatalf("manual run %d: got %s want %s", i, topic, want)
+				}
+				if err = repo.Finish(ctx, claim, nil, "", "failed", "mock_failure", 0); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cfg, err := repo.Config(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantSequence := int64(0)
+			if mode == "rotate" {
+				wantSequence = 4
+			}
+			if cfg.Sequence != wantSequence || cfg.NextRunAt != nil || cfg.Enabled {
+				t.Fatalf("unexpected config: %+v", cfg)
+			}
+		})
 	}
 }
 

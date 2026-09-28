@@ -204,7 +204,7 @@ func (r *Repository) Claim(ctx context.Context, now time.Time) (*Claim, error) {
 	return claim, nil
 }
 
-// ClaimManual creates an immediate run without changing the automatic schedule.
+// ClaimManual shares topic rotation with scheduled runs, without moving their due time.
 func (r *Repository) ClaimManual(ctx context.Context, now time.Time) (*Claim, error) {
 	now = now.UTC().Truncate(time.Microsecond)
 	tx, err := r.db.BeginTx(ctx, nil)
@@ -274,6 +274,13 @@ func (r *Repository) ClaimManual(ctx context.Context, now time.Time) (*Claim, er
 	err = tx.QueryRowContext(ctx, `INSERT INTO pelican_runs (config_id, config_revision, scheduled_for, status, claim_token, lease_expires_at, topic_id, prompt_version, prompt_hash, prompt_snapshot, request_snapshot, selected_groups_snapshot, started_at, error_code, skipped_hours) VALUES (1,$1,$2,'running',$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11,'',0) RETURNING id`, cfg.Revision, slot, claim.Token, claim.LeaseExpiresAt, topic.ID, topic.Version, contentHash(claim.Prompt), claim.Prompt, string(snapshot), string(tagsJSON), now).Scan(&claim.ID)
 	if err != nil {
 		return nil, err
+	}
+	// Consume a topic exactly once, only after this manual claim was accepted.
+	// Rejected concurrent/cooldown requests never advance the sequence.
+	if cfg.TopicMode == "rotate" {
+		if _, err = tx.ExecContext(ctx, `UPDATE pelican_config SET rotation_sequence=rotation_sequence+1 WHERE id=1`); err != nil {
+			return nil, err
+		}
 	}
 	if err = tx.Commit(); err != nil {
 		return nil, err
