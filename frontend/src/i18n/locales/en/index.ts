@@ -5,8 +5,10 @@ import channelMonitorV2 from './channelMonitorV2'
 import batchImage from './batchImage'
 import admin from './admin'
 import misc from './misc'
+import pelican from '@/features/pelican/locales/en'
 
 export default {
+  pelican,
   ...landing,
   ...common,
   ...dashboard,
