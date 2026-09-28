@@ -43,18 +43,28 @@
                 class="h-4 w-4 rounded"
               />{{ t('pelican.enabled') }}</label
             >
-            <p class="max-w-lg text-xs leading-5 text-gray-500">{{ t('pelican.scheduleHint') }}</p>
+            <p class="max-w-lg text-xs leading-5 text-gray-500">
+              {{ t('pelican.scheduleHint', { count: 1440 / form.interval_minutes }) }}
+            </p>
           </div>
           <div class="rounded-xl bg-gray-50 px-4 py-3 text-sm dark:bg-dark-800">
             <span class="font-mono">gpt-6-astra</span
             ><span class="ml-3 text-gray-500"
-              >{{ t('pelican.high') }} · {{ t('pelican.hourly') }}</span
+              >{{ t('pelican.high') }} · {{ t('pelican.intervalBadge', { minutes: config.interval_minutes }) }}</span
             >
           </div>
         </div>
         <p v-if="!config.encryption_ready" class="text-sm text-amber-700 dark:text-amber-300">
           {{ t('pelican.encryptionRequired') }}
         </p>
+        <div>
+          <label for="pelican-interval" class="mb-2 block text-sm font-medium">{{ t('pelican.interval') }}</label>
+          <select id="pelican-interval" v-model.number="form.interval_minutes" class="input" :disabled="saving">
+            <option :value="60">{{ t('pelican.everyHour') }}</option>
+            <option :value="30">{{ t('pelican.everyHalfHour') }}</option>
+            <option :value="10">{{ t('pelican.everyTenMinutes') }}</option>
+          </select>
+        </div>
         <div>
           <label for="pelican-key" class="mb-2 block text-sm font-medium">{{
             t('pelican.apiKey')
@@ -180,6 +190,8 @@
         >
           {{ t('pelican.generationHint') }}
         </p>
+        <p class="text-xs text-gray-500">{{ t('pelican.manualHint') }}</p>
+        <p v-if="hasUnsavedChanges" class="text-xs text-amber-700 dark:text-amber-300">{{ t('pelican.saveBeforeRun') }}</p>
         <div class="flex flex-wrap items-center justify-between gap-4">
           <p class="text-xs text-gray-500">
             {{ t('pelican.nextRun') }} · {{ formatTime(config.next_run_at, locale) }}
@@ -192,6 +204,14 @@
               @click="load"
             >
               {{ t('pelican.reload') }}</button
+            ><button
+              type="button"
+              class="btn btn-secondary"
+              data-testid="pelican-run-now"
+              :disabled="manualDisabled"
+              @click="runNow"
+            >
+              {{ manualSubmitting ? t('pelican.runningNow') : t('pelican.runNow') }}</button
             ><button type="submit" class="btn btn-primary" :disabled="saving">
               {{ saving ? t('pelican.saving') : t('pelican.save') }}
             </button>
@@ -235,7 +255,7 @@
                         ? 'text-emerald-600 dark:text-emerald-400'
                         : 'text-gray-500'
                     "
-                    >{{ t(`pelican.statuses.${run.status}`) }}</span
+                    >{{ run.error_code === 'timeout' ? t('pelican.timedOut') : t(`pelican.statuses.${run.status}`) }}</span
                   >
                 </td>
                 <td class="px-5 py-3">{{ run.total_tokens?.toLocaleString() ?? '—' }}</td>
@@ -291,6 +311,7 @@
         <p v-if="detail.run.error_code">
           {{ t('pelican.diagnostic') }}: <code>{{ detail.run.error_code }}</code>
         </p>
+        <p v-if="detail.run.error_code === 'timeout'" class="text-amber-700 dark:text-amber-300">{{ t('pelican.timeoutHint') }}</p>
         <p v-if="detail.skipped_hours">
           {{ t('pelican.skippedHours') }}: {{ detail.skipped_hours }}
         </p>
@@ -319,7 +340,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -342,6 +363,9 @@ const groups = ref<GroupTag[]>([])
 const apiKey = ref('')
 const loading = ref(false)
 const saving = ref(false)
+const manualSubmitting = ref(false)
+const savedForm = ref('')
+const pendingRunID = ref<number | null>(null)
 const error = ref('')
 const notice = ref('')
 const confirmClear = ref(false)
@@ -356,6 +380,10 @@ let disposed = false
 let detailRequest = 0
 let runsRequest = 0
 let timer: ReturnType<typeof setInterval> | undefined
+let lastRunsPoll = 0
+const hasUnsavedChanges = computed(() => apiKey.value.trim() !== '' || (form.value !== null && JSON.stringify(form.value) !== savedForm.value))
+const hasRunningRun = computed(() => pendingRunID.value !== null || runs.value.some((run) => run.status === 'running'))
+const manualDisabled = computed(() => loading.value || saving.value || manualSubmitting.value || hasUnsavedChanges.value || hasRunningRun.value || !config.value?.key_configured || !config.value.encryption_ready || config.value.key_unavailable)
 
 function applyConfig(value: PelicanConfig) {
   config.value = value
@@ -367,7 +395,8 @@ function applyConfig(value: PelicanConfig) {
     fixed_topic_id,
     max_output_tokens,
     timeout_seconds,
-    retention_days
+    retention_days,
+    interval_minutes
   } = value
   form.value = {
     revision,
@@ -377,8 +406,10 @@ function applyConfig(value: PelicanConfig) {
     fixed_topic_id,
     max_output_tokens,
     timeout_seconds,
-    retention_days
+    retention_days,
+    interval_minutes
   }
+  savedForm.value = JSON.stringify(form.value)
   apiKey.value = ''
 }
 async function load() {
@@ -447,7 +478,34 @@ async function clearKey() {
     saving.value = false
   }
 }
+async function runNow() {
+  if (manualDisabled.value) return
+  manualSubmitting.value = true
+  error.value = ''
+  notice.value = ''
+  try {
+    const result = await pelicanAPI.runNow()
+    if (!disposed) {
+      pendingRunID.value = result.id
+      runCursor.value = ''
+      runHistory.value = []
+      notice.value = t('pelican.runQueued', { id: result.id })
+      void loadRuns()
+    }
+  } catch (err) {
+    if (!disposed) {
+      const status = typeof err === 'object' && err !== null && 'status' in err
+        ? (err as { status: number }).status
+        : 0
+      error.value = t(status === 409 ? 'pelican.runActive' : status === 429 ? 'pelican.runCooldown' : 'pelican.runFailed')
+      if (status === 409) void loadRuns()
+    }
+  } finally {
+    manualSubmitting.value = false
+  }
+}
 async function loadRuns() {
+  lastRunsPoll = Date.now()
   const sequence = ++runsRequest
   runsLoading.value = true
   try {
@@ -455,6 +513,8 @@ async function loadRuns() {
     if (disposed || sequence !== runsRequest) return
     runs.value = page.items
     nextRunCursor.value = page.next_cursor
+    const pending = page.items.find((run) => run.id === pendingRunID.value)
+    if (pending && pending.status !== 'running') pendingRunID.value = null
   } catch {
     /* Keep the existing log table if polling is temporarily unavailable. */
   } finally {
@@ -489,8 +549,8 @@ onMounted(() => {
   void load()
   void loadRuns()
   timer = setInterval(() => {
-    if (!document.hidden && !runsLoading.value) void loadRuns()
-  }, 60000)
+    if (!document.hidden && !runsLoading.value && (hasRunningRun.value || Date.now() - lastRunsPoll >= 60000)) void loadRuns()
+  }, 5000)
 })
 onBeforeUnmount(() => {
   disposed = true

@@ -19,7 +19,7 @@ type Repository struct{ db *sql.DB }
 func NewRepository(db *sql.DB) *Repository { return &Repository{db: db} }
 
 const configColumns = `revision, enabled, api_key_encrypted, selected_group_ids, topic_mode,
- fixed_topic_id, rotation_sequence, max_output_tokens, timeout_seconds, retention_days, next_run_at`
+ fixed_topic_id, rotation_sequence, max_output_tokens, timeout_seconds, retention_days, next_run_at, interval_minutes`
 
 type scanner interface{ Scan(...any) error }
 
@@ -27,7 +27,7 @@ func scanConfig(row scanner) (Config, error) {
 	c := Config{Model: Model, ReasoningEffort: ReasoningEffort}
 	var groups []byte
 	err := row.Scan(&c.Revision, &c.Enabled, &c.EncryptedKey, &groups, &c.TopicMode,
-		&c.FixedTopicID, &c.Sequence, &c.MaxOutputTokens, &c.TimeoutSeconds, &c.RetentionDays, &c.NextRunAt)
+		&c.FixedTopicID, &c.Sequence, &c.MaxOutputTokens, &c.TimeoutSeconds, &c.RetentionDays, &c.NextRunAt, &c.IntervalMinutes)
 	if err != nil {
 		return c, err
 	}
@@ -46,6 +46,9 @@ func (r *Repository) Config(ctx context.Context) (Config, error) {
 }
 
 func (r *Repository) SaveConfig(ctx context.Context, in SaveConfig, encrypted *string, actorID int64, now time.Time) error {
+	if err := in.Validate(); err != nil {
+		return err
+	}
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -57,6 +60,9 @@ func (r *Repository) SaveConfig(ctx context.Context, in SaveConfig, encrypted *s
 	}
 	if cfg.Revision != in.Revision {
 		return ErrConflict
+	}
+	if in.IntervalMinutes == 0 {
+		in.IntervalMinutes = cfg.IntervalMinutes
 	}
 	if encrypted != nil {
 		cfg.EncryptedKey = *encrypted
@@ -77,16 +83,16 @@ func (r *Repository) SaveConfig(ctx context.Context, in SaveConfig, encrypted *s
 	var next *time.Time
 	if in.Enabled {
 		next = cfg.NextRunAt
-		if !cfg.Enabled || next == nil {
-			n := nextHour(now)
+		if !cfg.Enabled || next == nil || cfg.IntervalMinutes != in.IntervalMinutes {
+			n := nextScheduledRun(now, in.IntervalMinutes)
 			next = &n
 		}
 	}
 	_, err = tx.ExecContext(ctx, `UPDATE pelican_config SET revision=revision+1, enabled=$1,
  api_key_encrypted=$2, selected_group_ids=$3::jsonb, topic_mode=$4, fixed_topic_id=$5,
- max_output_tokens=$6, timeout_seconds=$7, retention_days=$8, next_run_at=$9, updated_by=NULLIF($10,0), updated_at=$11 WHERE id=1`,
+ max_output_tokens=$6, timeout_seconds=$7, retention_days=$8, next_run_at=$9, updated_by=NULLIF($10,0), updated_at=$11, interval_minutes=$12 WHERE id=1`,
 		in.Enabled, cfg.EncryptedKey, string(groups), in.TopicMode, in.FixedTopicID,
-		in.MaxOutputTokens, in.TimeoutSeconds, in.RetentionDays, next, actorID, now)
+		in.MaxOutputTokens, in.TimeoutSeconds, in.RetentionDays, next, actorID, now, in.IntervalMinutes)
 	if err != nil {
 		return err
 	}
@@ -107,7 +113,7 @@ func (r *Repository) ClearKey(ctx context.Context, revision, actorID int64) erro
 }
 
 // Claim advances the schedule before dispatch. An ambiguous commit or lost worker
-// is deliberately NOT retried: the next scan will see the claimed hour.
+// is deliberately NOT retried: the next scan will see the claimed time slot.
 func (r *Repository) Claim(ctx context.Context, now time.Time) (*Claim, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -126,8 +132,9 @@ func (r *Repository) Claim(ctx context.Context, now time.Time) (*Claim, error) {
 	if !cfg.Enabled || cfg.NextRunAt == nil || cfg.NextRunAt.After(now) {
 		return nil, tx.Commit()
 	}
-	slot := now.UTC().Truncate(time.Hour)
-	missed := int64(slot.Sub(cfg.NextRunAt.UTC().Truncate(time.Hour)) / time.Hour)
+	interval := scheduleInterval(cfg.IntervalMinutes)
+	slot := now.UTC().Truncate(interval)
+	missed := int64(slot.Sub(cfg.NextRunAt.UTC().Truncate(interval)) / interval)
 	if missed < 0 {
 		missed = 0
 	}
@@ -159,7 +166,8 @@ func (r *Repository) Claim(ctx context.Context, now time.Time) (*Claim, error) {
 	}
 	tagsJSON, _ := json.Marshal(tags)
 	snapshot, _ := json.Marshal(map[string]any{"model": Model, "reasoning": map[string]string{"effort": ReasoningEffort},
-		"max_output_tokens": cfg.MaxOutputTokens, "timeout_seconds": cfg.TimeoutSeconds})
+		"max_output_tokens": cfg.MaxOutputTokens, "timeout_seconds": cfg.TimeoutSeconds,
+		"interval_minutes": cfg.IntervalMinutes, "trigger": "scheduled"})
 	var random [16]byte
 	if _, err = rand.Read(random[:]); err != nil {
 		return nil, err
@@ -180,7 +188,7 @@ func (r *Repository) Claim(ctx context.Context, now time.Time) (*Claim, error) {
 	if err != nil && !duplicate {
 		return nil, err
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE pelican_config SET next_run_at=$1, rotation_sequence=rotation_sequence+$2 WHERE id=1`, nextHour(now), missed+1)
+	_, err = tx.ExecContext(ctx, `UPDATE pelican_config SET next_run_at=$1, rotation_sequence=rotation_sequence+$2 WHERE id=1`, nextScheduledRun(now, cfg.IntervalMinutes), missed+1)
 	if err != nil {
 		return nil, err
 	}
@@ -189,6 +197,83 @@ func (r *Repository) Claim(ctx context.Context, now time.Time) (*Claim, error) {
 	}
 	if busy || duplicate {
 		return nil, nil
+	}
+	return claim, nil
+}
+
+// ClaimManual creates an immediate run without changing the automatic schedule.
+func (r *Repository) ClaimManual(ctx context.Context, now time.Time) (*Claim, error) {
+	now = now.UTC().Truncate(time.Microsecond)
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	cfg, err := scanConfig(tx.QueryRowContext(ctx, `SELECT `+configColumns+` FROM pelican_config WHERE id=1 FOR UPDATE`))
+	if err != nil {
+		return nil, err
+	}
+	if cfg.EncryptedKey == "" {
+		return nil, ErrKeyRequired
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE pelican_runs SET status='interrupted', error_code='lease_expired', finished_at=$1
+ WHERE config_id=1 AND status='running' AND lease_expires_at <= $1`, now)
+	if err != nil {
+		return nil, err
+	}
+	var busy bool
+	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pelican_runs WHERE config_id=1 AND status='running')`).Scan(&busy); err != nil {
+		return nil, err
+	}
+	if busy {
+		return nil, ErrRunActive
+	}
+	var recent bool
+	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pelican_runs
+ WHERE config_id=1 AND request_snapshot->>'trigger'='manual' AND started_at > $1)`, now.Add(-ManualRunCooldown)).Scan(&recent); err != nil {
+		return nil, err
+	}
+	if recent {
+		return nil, ErrRunCooldown
+	}
+	topic := selectTopic(cfg, 0)
+	ids, _ := json.Marshal(cfg.SelectedGroupIDs)
+	rows, err := tx.QueryContext(ctx, `SELECT id, name FROM groups WHERE deleted_at IS NULL AND status='active' AND id IN (SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb)) ORDER BY id`, string(ids))
+	if err != nil {
+		return nil, err
+	}
+	tags := []GroupTag{}
+	for rows.Next() {
+		var g GroupTag
+		if err = rows.Scan(&g.ID, &g.Name); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		tags = append(tags, g)
+	}
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+	tagsJSON, _ := json.Marshal(tags)
+	snapshot, _ := json.Marshal(map[string]any{"model": Model, "reasoning": map[string]string{"effort": ReasoningEffort}, "max_output_tokens": cfg.MaxOutputTokens, "timeout_seconds": cfg.TimeoutSeconds, "trigger": "manual"})
+	var random [16]byte
+	if _, err = rand.Read(random[:]); err != nil {
+		return nil, err
+	}
+	claim := &Claim{Token: hex.EncodeToString(random[:]), LeaseExpiresAt: now.Add(time.Duration(cfg.TimeoutSeconds+60) * time.Second), Prompt: topic.prompt(), Config: cfg}
+	// PostgreSQL stores microseconds. Reserve schedule boundaries for automatic runs.
+	slot := now.UTC().Truncate(time.Microsecond)
+	if slot.Equal(slot.Truncate(10 * time.Minute)) {
+		slot = slot.Add(time.Microsecond)
+	}
+	err = tx.QueryRowContext(ctx, `INSERT INTO pelican_runs (config_id, config_revision, scheduled_for, status, claim_token, lease_expires_at, topic_id, prompt_version, prompt_hash, prompt_snapshot, request_snapshot, selected_groups_snapshot, started_at, error_code, skipped_hours) VALUES (1,$1,$2,'running',$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11,'',0) RETURNING id`, cfg.Revision, slot, claim.Token, claim.LeaseExpiresAt, topic.ID, topic.Version, contentHash(claim.Prompt), claim.Prompt, string(snapshot), string(tagsJSON), now).Scan(&claim.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
 	}
 	return claim, nil
 }
@@ -370,9 +455,10 @@ func (r *Repository) Groups(ctx context.Context) ([]GroupTag, error) {
 
 func (r *Repository) Status(ctx context.Context) (map[string]any, error) {
 	var enabled bool
+	var minutes int
 	var next, last *time.Time
-	err := r.db.QueryRowContext(ctx, `SELECT enabled,next_run_at,(SELECT MAX(finished_at) FROM pelican_runs r WHERE `+visibleSQL()+`) FROM pelican_config WHERE id=1`).Scan(&enabled, &next, &last)
-	return map[string]any{"enabled": enabled, "next_run_at": next, "last_success_at": last, "interval_seconds": 3600}, err
+	err := r.db.QueryRowContext(ctx, `SELECT enabled,next_run_at,(SELECT MAX(finished_at) FROM pelican_runs r WHERE `+visibleSQL()+`),interval_minutes FROM pelican_config WHERE id=1`).Scan(&enabled, &next, &last, &minutes)
+	return map[string]any{"enabled": enabled, "next_run_at": next, "last_success_at": last, "interval_seconds": int(scheduleInterval(minutes) / time.Second)}, err
 }
 
 func (r *Repository) Detail(ctx context.Context, id int64) (map[string]any, error) {
@@ -391,7 +477,7 @@ func (r *Repository) Detail(ctx context.Context, id int64) (map[string]any, erro
 }
 
 func (r *Repository) Cleanup(ctx context.Context) error {
-	// A bounded batch is enough at 24 runs/day and avoids long-held locks.
+	// A bounded batch handles all supported intervals and avoids long-held locks.
 	_, err := r.db.ExecContext(ctx, `DELETE FROM pelican_runs WHERE id IN (SELECT r.id FROM pelican_runs r
  JOIN pelican_config c ON c.id=r.config_id WHERE r.status<>'running'
  AND r.scheduled_for < NOW() - make_interval(days => c.retention_days) ORDER BY r.id LIMIT 500)`)

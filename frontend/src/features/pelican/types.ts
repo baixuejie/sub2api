@@ -11,6 +11,7 @@ export interface PelicanConfig {
   max_output_tokens: number
   timeout_seconds: number
   retention_days: number
+  interval_minutes: 10 | 30 | 60
   next_run_at: string | null
   key_configured: boolean
   key_masked: string
@@ -29,6 +30,7 @@ export type SaveConfig = Pick<
   | 'max_output_tokens'
   | 'timeout_seconds'
   | 'retention_days'
+  | 'interval_minutes'
 > & { api_key?: string }
 export interface PelicanRun {
   id: number

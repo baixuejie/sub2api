@@ -23,6 +23,9 @@ export const pelicanAPI = {
   async clearKey(revision: number): Promise<PelicanConfig> {
     return (await apiClient.delete('/admin/pelican/config/key', { params: { revision } })).data
   },
+  async runNow(): Promise<{ id: number; status: string }> {
+    return (await apiClient.post('/admin/pelican/run')).data
+  },
   async list(options: ListOptions = {}, admin = false, signal?: AbortSignal): Promise<RunPage> {
     return (
       await apiClient.get(admin ? '/admin/pelican/runs' : '/pelican/runs', {

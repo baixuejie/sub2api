@@ -10,6 +10,7 @@ import (
 
 type runStore interface {
 	Claim(context.Context, time.Time) (*Claim, error)
+	ClaimManual(context.Context, time.Time) (*Claim, error)
 	ClaimActive(context.Context, *Claim) (bool, error)
 	Finish(context.Context, *Claim, *Generation, string, string, string, time.Duration) error
 	Cleanup(context.Context) error
@@ -55,6 +56,32 @@ func (r *Runner) Start() {
 }
 func (r *Runner) Stop() { r.stopOnce.Do(func() { r.cancel(); r.wg.Wait() }) }
 
+func (r *Runner) Trigger(ctx context.Context) (int64, error) {
+	if r.ctx.Err() != nil {
+		return 0, ErrRunnerUnavailable
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	claim, err := r.repo.ClaimManual(ctx, time.Now().UTC())
+	if err != nil {
+		return 0, err
+	}
+	select {
+	case r.jobs <- claim:
+		return claim.ID, nil
+	case <-ctx.Done():
+		r.finish(claim, nil, "", "interrupted", "request_cancelled", 0)
+		return 0, ctx.Err()
+	case <-r.ctx.Done():
+		r.finish(claim, nil, "", "interrupted", "shutdown", 0)
+		return 0, ErrRunnerUnavailable
+	case <-time.After(time.Second):
+		r.finish(claim, nil, "", "skipped", "worker_busy", 0)
+		return claim.ID, ErrRunActive
+	}
+}
+
 func (r *Runner) scanLoop() {
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
@@ -76,7 +103,7 @@ func (r *Runner) scanLoop() {
 			slog.Warn("pelican: schedule scan failed")
 		}
 		if claim != nil {
-			// One worker and no backlog: an hour is never delayed behind old work.
+			// One worker and no backlog: a scheduled run is never queued behind old work.
 			select {
 			case r.jobs <- claim:
 			case <-r.ctx.Done():
@@ -141,6 +168,6 @@ func (r *Runner) finish(c *Claim, result *Generation, preview, status, code stri
 	if err := r.repo.Finish(ctx, c, result, preview, status, code, elapsed); err != nil {
 		slog.Warn("pelican: unable to save run", "run_id", c.ID)
 	} else if status != "succeeded" {
-		slog.Info("pelican: hourly generation skipped", "run_id", c.ID, "code", code)
+		slog.Info("pelican: generation did not succeed", "run_id", c.ID, "code", code)
 	}
 }

@@ -1,6 +1,7 @@
 package pelican
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -23,6 +24,7 @@ func (m *Module) RegisterRoutes(admin, user *gin.RouterGroup, actorID func(*gin.
 	a.Use(func(c *gin.Context) { c.Header("Cache-Control", "no-store"); c.Next() })
 	a.GET("/config", h.config)
 	a.PUT("/config", h.saveConfig)
+	a.POST("/run", h.runNow)
 	a.DELETE("/config/key", h.clearKey)
 	a.GET("/runs", func(c *gin.Context) { h.list(c, true) })
 	a.GET("/runs/:id", h.detail)
@@ -41,11 +43,51 @@ func writeError(c *gin.Context, err error) {
 		response.NotFound(c, "Not found")
 	case errors.Is(err, ErrConflict):
 		response.Error(c, http.StatusConflict, ErrConflict.Error())
+	case errors.Is(err, ErrRunActive):
+		response.Error(c, http.StatusConflict, ErrRunActive.Error())
+	case errors.Is(err, ErrRunCooldown):
+		c.Header("Retry-After", "10")
+		response.Error(c, http.StatusTooManyRequests, ErrRunCooldown.Error())
+	case errors.Is(err, ErrRunnerUnavailable):
+		response.Error(c, http.StatusServiceUnavailable, ErrRunnerUnavailable.Error())
 	case errors.Is(err, ErrGroups), errors.Is(err, ErrKeyRequired):
 		response.BadRequest(c, err.Error())
 	default:
 		response.InternalError(c, "Unable to load or save gallery data")
 	}
+}
+
+func (h *Handler) runNow(c *gin.Context) {
+	if !h.module.EncryptionReady {
+		response.BadRequest(c, "Configure a persistent TOTP encryption key before running generation")
+		return
+	}
+	if h.module.Runner == nil {
+		writeError(c, ErrRunnerUnavailable)
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+	cfg, err := h.module.Repo.Config(ctx)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	if !cfg.KeyConfigured {
+		writeError(c, ErrKeyRequired)
+		return
+	}
+	key, err := h.module.Encryptor.Decrypt(cfg.EncryptedKey)
+	if err != nil || key == "" {
+		response.BadRequest(c, "Replace the unavailable saved API key before running generation")
+		return
+	}
+	id, err := h.module.Runner.Trigger(ctx)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	response.Accepted(c, gin.H{"id": id, "status": "running"})
 }
 
 func (h *Handler) config(c *gin.Context) {

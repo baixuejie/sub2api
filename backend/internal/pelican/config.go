@@ -1,4 +1,4 @@
-// Package pelican implements the opt-in hourly code-generation gallery.
+// Package pelican implements the opt-in scheduled code-generation gallery.
 package pelican
 
 import (
@@ -13,13 +13,17 @@ const (
 	PreviewPolicyVersion = 1
 	MaxArtifactBytes     = 1 << 20
 	MaxResponseBytes     = 4 << 20
+	ManualRunCooldown    = 10 * time.Second
 )
 
 var (
-	ErrConflict    = errors.New("configuration changed; reload and try again")
-	ErrGroups      = errors.New("selected groups must be active and available")
-	ErrKeyRequired = errors.New("an API key is required before enabling generation")
-	ErrNotFound    = errors.New("not found")
+	ErrConflict          = errors.New("configuration changed; reload and try again")
+	ErrGroups            = errors.New("selected groups must be active and available")
+	ErrKeyRequired       = errors.New("an API key is required before enabling generation")
+	ErrRunActive         = errors.New("a gallery generation is already running")
+	ErrRunCooldown       = errors.New("wait 10 seconds between manual generations")
+	ErrRunnerUnavailable = errors.New("gallery runner is unavailable")
+	ErrNotFound          = errors.New("not found")
 )
 
 type Encryptor interface {
@@ -36,6 +40,7 @@ type Config struct {
 	MaxOutputTokens  int        `json:"max_output_tokens"`
 	TimeoutSeconds   int        `json:"timeout_seconds"`
 	RetentionDays    int        `json:"retention_days"`
+	IntervalMinutes  int        `json:"interval_minutes"`
 	NextRunAt        *time.Time `json:"next_run_at"`
 	KeyConfigured    bool       `json:"key_configured"`
 	KeyMasked        string     `json:"key_masked"`
@@ -57,9 +62,14 @@ type SaveConfig struct {
 	MaxOutputTokens  int     `json:"max_output_tokens"`
 	TimeoutSeconds   int     `json:"timeout_seconds"`
 	RetentionDays    int     `json:"retention_days"`
+	IntervalMinutes  int     `json:"interval_minutes"`
 }
 
 func (c *SaveConfig) Validate() error {
+	// Older clients omit this field; the repository preserves the saved interval.
+	if c.IntervalMinutes != 0 && c.IntervalMinutes != 10 && c.IntervalMinutes != 30 && c.IntervalMinutes != 60 {
+		return errors.New("generation interval must be 10, 30 or 60 minutes")
+	}
 	if c.Revision < 1 || (c.TopicMode != "rotate" && c.TopicMode != "fixed") || topicByID(c.FixedTopicID) == nil {
 		return errors.New("invalid configuration revision or topic")
 	}
@@ -91,7 +101,19 @@ func (c *SaveConfig) Validate() error {
 	return nil
 }
 
-func nextHour(now time.Time) time.Time { return now.UTC().Truncate(time.Hour).Add(time.Hour) }
+func scheduleInterval(minutes int) time.Duration {
+	if minutes != 10 && minutes != 30 {
+		minutes = 60
+	}
+	return time.Duration(minutes) * time.Minute
+}
+
+func nextScheduledRun(now time.Time, minutes int) time.Time {
+	interval := scheduleInterval(minutes)
+	return now.UTC().Truncate(interval).Add(interval)
+}
+
+func nextHour(now time.Time) time.Time { return nextScheduledRun(now, 60) }
 
 type GroupTag struct {
 	ID   int64  `json:"id"`

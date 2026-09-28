@@ -191,7 +191,10 @@ type fakeRunStore struct {
 	finishes              int
 }
 
-func (*fakeRunStore) Claim(context.Context, time.Time) (*Claim, error)  { return nil, nil }
+func (*fakeRunStore) Claim(context.Context, time.Time) (*Claim, error) { return nil, nil }
+func (*fakeRunStore) ClaimManual(context.Context, time.Time) (*Claim, error) {
+	return &Claim{ID: 7, Config: Config{EncryptedKey: "encrypted:key", TimeoutSeconds: 60, MaxOutputTokens: 16384}, Prompt: safeExample}, nil
+}
 func (*fakeRunStore) ClaimActive(context.Context, *Claim) (bool, error) { return true, nil }
 func (s *fakeRunStore) Finish(_ context.Context, _ *Claim, _ *Generation, preview, status, code string, _ time.Duration) error {
 	s.finishes++

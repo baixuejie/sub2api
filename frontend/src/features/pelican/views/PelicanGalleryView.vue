@@ -8,8 +8,9 @@
               {{ t('pelican.title') }}
             </h1>
             <span
+              v-if="status"
               class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
-              >{{ t('pelican.hourly') }}</span
+              >{{ t('pelican.intervalBadge', { minutes: status.interval_seconds / 60 }) }}</span
             >
           </div>
           <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">

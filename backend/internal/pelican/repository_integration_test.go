@@ -55,13 +55,15 @@ func testRepository(t *testing.T) *Repository {
  INSERT INTO groups VALUES(1,'A','active',NULL),(2,'B','active',NULL),(3,'C','active',NULL);`); err != nil {
 		t.Fatal(err)
 	}
-	migration, err := os.ReadFile(filepath.Join("..", "..", "migrations", "241_local_pelican_gallery.sql"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	for i := 0; i < 2; i++ {
-		if _, err = db.Exec(string(migration)); err != nil {
-			t.Fatal(err)
+		for _, name := range []string{"241_local_pelican_gallery.sql", "242_local_pelican_interval.sql"} {
+			migration, err := os.ReadFile(filepath.Join("..", "..", "migrations", name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = db.Exec(string(migration)); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	return NewRepository(db)
