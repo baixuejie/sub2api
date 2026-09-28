@@ -312,6 +312,17 @@
           {{ t('pelican.diagnostic') }}: <code>{{ detail.run.error_code }}</code>
         </p>
         <p v-if="detail.run.error_code === 'timeout'" class="text-amber-700 dark:text-amber-300">{{ t('pelican.timeoutHint') }}</p>
+        <div v-if="detail.source_available" class="space-y-2">
+          <p class="break-all">{{ t('pelican.savedFile') }}: <code>{{ detail.raw_path }}</code></p>
+          <p class="text-gray-500">{{ t('pelican.previewSafetyHint') }}</p>
+          <button class="btn btn-secondary" :disabled="rebuilding" @click="rebuildPreview">{{ t('pelican.rebuildPreview') }}</button>
+          <button class="btn btn-secondary ml-2" :disabled="!source" @click="downloadSource">{{ t('pelican.downloadSource') }}</button>
+        </div>
+        <p v-else-if="detail.run.status === 'preview_blocked'" class="text-amber-700 dark:text-amber-300">{{ t('pelican.legacySourceMissing') }}</p>
+        <details v-if="detail.preview_notes?.length">
+          <summary>{{ t('pelican.previewNotes') }}</summary>
+          <pre class="whitespace-pre-wrap break-words text-xs">{{ detail.preview_notes.join('\n') }}</pre>
+        </details>
         <p v-if="detail.skipped_hours">
           {{ t('pelican.skippedHours') }}: {{ detail.skipped_hours }}
         </p>
@@ -376,6 +387,7 @@ const nextRunCursor = ref('')
 const runHistory = ref<string[]>([])
 const detail = ref<RunDetail | null>(null)
 const source = ref('')
+const rebuilding = ref(false)
 let disposed = false
 let detailRequest = 0
 let runsRequest = 0
@@ -537,13 +549,34 @@ async function openDetail(run: PelicanRun) {
     const value = await pelicanAPI.detail(run.id)
     if (disposed || sequence !== detailRequest) return
     detail.value = value
-    if (run.status === 'succeeded') {
+    if (value.source_available) {
       const text = await pelicanAPI.source(run.id)
       if (!disposed && sequence === detailRequest) source.value = text.source
     }
   } catch {
     if (!disposed && sequence === detailRequest) error.value = t('pelican.detailFailed')
   }
+}
+async function rebuildPreview() {
+  if (!detail.value || rebuilding.value) return
+  rebuilding.value = true
+  const id = detail.value.run.id
+  try {
+    const updated = await pelicanAPI.rebuildPreview(id)
+    if (!disposed && detail.value?.run.id === id) detail.value = updated
+    if (!disposed) void loadRuns()
+  } catch {
+    if (!disposed) error.value = t('pelican.rebuildFailed')
+  } finally { rebuilding.value = false }
+}
+function downloadSource() {
+  if (!source.value || !detail.value) return
+  const url = URL.createObjectURL(new Blob([source.value], { type: 'text/plain;charset=utf-8' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `pelican-${detail.value.run.id}-source.txt`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 onMounted(() => {
   void load()

@@ -139,6 +139,12 @@ func (r *Runner) execute(claim *Claim) {
 		r.finish(claim, nil, "", "interrupted", "claim_unavailable", 0)
 		return
 	}
+	if storage, ok := r.repo.(interface{ CheckStorage() error }); ok {
+		if err := storage.CheckStorage(); err != nil {
+			r.finish(claim, nil, "", "failed", "artifact_storage_unavailable", 0)
+			return
+		}
+	}
 	result, err := r.generator.Generate(ctx, key, claim.Prompt, claim.Config.MaxOutputTokens)
 	status, code, preview := "succeeded", "", ""
 	if err != nil {
@@ -154,9 +160,10 @@ func (r *Runner) execute(claim *Claim) {
 			status, code = "interrupted", "shutdown"
 		}
 	} else {
-		preview, err = preparePreview(result.Text)
+		preview, result.PreviewNotes, err = sanitizePreview(result.Text)
 		if err != nil {
-			status, code = "preview_blocked", "unsafe_or_unsupported_output"
+			status, code = "preview_blocked", "preview_unavailable"
+			result.PreviewNotes = []string{err.Error()}
 		}
 	}
 	r.finish(claim, result, preview, status, code, time.Since(started))

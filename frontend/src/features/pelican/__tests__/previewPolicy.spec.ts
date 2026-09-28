@@ -20,7 +20,7 @@ describe('isolated SVG preview', () => {
       `<svg onload="alert(1)"><script>alert(1)</script><foreignObject><iframe src="https://example.com"/></foreignObject><use href="https://example.com/a.svg#x"/><animate attributeName="href" values="javascript:alert(1)"/></svg><img src="https://example.com/track"><form action="https://example.com"><input/></form>`
     )
     const doc = new DOMParser().parseFromString(result!, 'text/html')
-    expect(doc.querySelector('script, foreignObject, iframe, img, form, input, animate')).toBeNull()
+    expect(doc.querySelector('script, iframe, img, form, input, animate')).toBeNull()
     expect(doc.querySelector('[onload]')).toBeNull()
     expect(doc.querySelector('[href]')).toBeNull()
   })
@@ -29,5 +29,14 @@ describe('isolated SVG preview', () => {
     expect(buildPreviewHTML('')).toBeNull()
     expect(buildPreviewHTML('<html><body>no SVG</body></html>')).toBeNull()
     expect(buildPreviewHTML('x'.repeat(1048577))).toBeNull()
+  })
+
+  it('supports ordinary SVG metadata, foreignObject text, and CSS-only drawings', () => {
+    const result = buildPreviewHTML('<svg version="1.1" data-scene="bird" viewBox="0 0 960 720"><foreignObject width="100" height="40"><div>Caption</div></foreignObject><circle id="dot" r="4" /><use href="#dot" /></svg>')
+    expect(result).toContain('Caption')
+    expect(result).toContain('foreignObject')
+    expect(result).toContain('data-scene')
+    expect(result).toContain('<use href="#dot"')
+    expect(buildPreviewHTML('<html><body><div style="width:40px;height:40px;background:red"></div></body></html>')).not.toBeNull()
   })
 })

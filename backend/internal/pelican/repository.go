@@ -14,9 +14,12 @@ import (
 	"time"
 )
 
-type Repository struct{ db *sql.DB }
+type Repository struct {
+	db    *sql.DB
+	files *artifactFiles
+}
 
-func NewRepository(db *sql.DB) *Repository { return &Repository{db: db} }
+func NewRepository(db *sql.DB) *Repository { return &Repository{db: db, files: defaultArtifactFiles()} }
 
 const configColumns = `revision, enabled, api_key_encrypted, selected_group_ids, topic_mode,
  fixed_topic_id, rotation_sequence, max_output_tokens, timeout_seconds, retention_days, next_run_at, interval_minutes`
@@ -309,9 +312,24 @@ func (r *Repository) Finish(ctx context.Context, claim *Claim, result *Generatio
 	if n == 0 {
 		return nil
 	}
-	if status == "succeeded" {
-		_, err = tx.ExecContext(ctx, `INSERT INTO pelican_artifacts (run_id,raw_output,preview_html,content_sha256,size_bytes,preview_policy_version)
- VALUES ($1,$2,$3,$4,$5,$6)`, claim.ID, result.Text, preview, contentHash(result.Text), len(preview), PreviewPolicyVersion)
+	if result.Text != "" && (status == "succeeded" || status == "preview_blocked") {
+		rawPath, fileErr := r.files.write(claim.ID, "source", result.Text)
+		if fileErr != nil {
+			return fmt.Errorf("save pelican source: %w", fileErr)
+		}
+		previewPath := ""
+		if preview != "" {
+			previewPath, err = r.files.write(claim.ID, "preview", preview)
+			if err != nil {
+				return fmt.Errorf("save pelican preview: %w", err)
+			}
+		}
+		notes, _ := json.Marshal(result.PreviewNotes)
+		if result.PreviewNotes == nil {
+			notes = []byte("[]")
+		}
+		_, err = tx.ExecContext(ctx, `INSERT INTO pelican_artifacts (run_id,raw_path,preview_path,content_sha256,size_bytes,preview_policy_version,preview_notes)
+ VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)`, claim.ID, rawPath, previewPath, contentHash(result.Text), len(preview), PreviewPolicyVersion, string(notes))
 		if err != nil {
 			return err
 		}
@@ -354,7 +372,7 @@ func parseCursor(s string) (cursor, error) {
 const runColumns = `r.id, r.scheduled_for, r.status, r.topic_id, r.selected_groups_snapshot,
  r.input_tokens, r.output_tokens, r.total_tokens, r.latency_ms, r.finished_at, r.error_code`
 
-const visibleRun = `r.status='succeeded' AND EXISTS (SELECT 1 FROM pelican_artifacts a WHERE a.run_id=r.id AND a.preview_policy_version=`
+const visibleRun = `r.status='succeeded' AND EXISTS (SELECT 1 FROM pelican_artifacts a WHERE a.run_id=r.id AND a.preview_path<>'' AND a.preview_policy_version=`
 
 func visibleSQL() string { return visibleRun + strconv.Itoa(PreviewPolicyVersion) + `)` }
 
@@ -423,16 +441,19 @@ func (r *Repository) List(ctx context.Context, opt ListOptions) (Page, error) {
 }
 
 func (r *Repository) Artifact(ctx context.Context, id int64, source bool) (string, error) {
-	column, filter := "a.preview_html", " AND r.status='succeeded' AND a.preview_policy_version="+strconv.Itoa(PreviewPolicyVersion)
+	column, filter := "a.preview_path", " AND r.status='succeeded' AND a.preview_policy_version="+strconv.Itoa(PreviewPolicyVersion)
 	if source {
-		column, filter = "a.raw_output", ""
+		column, filter = "a.raw_path", ""
 	}
 	var content string
 	err := r.db.QueryRowContext(ctx, `SELECT `+column+` FROM pelican_artifacts a JOIN pelican_runs r ON r.id=a.run_id WHERE r.id=$1`+filter, id).Scan(&content)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", ErrNotFound
 	}
-	return content, err
+	if err != nil {
+		return "", err
+	}
+	return r.files.read(content)
 }
 
 func (r *Repository) Groups(ctx context.Context) ([]GroupTag, error) {
@@ -472,17 +493,53 @@ func (r *Repository) Detail(ctx context.Context, id int64) (map[string]any, erro
 	var prompt string
 	var request, usage json.RawMessage
 	var skipped int64
-	err = r.db.QueryRowContext(ctx, `SELECT prompt_snapshot,request_snapshot,usage_details,skipped_hours FROM pelican_runs WHERE id=$1`, id).Scan(&prompt, &request, &usage, &skipped)
-	return map[string]any{"run": item, "prompt": prompt, "request": request, "usage": usage, "skipped_hours": skipped}, err
+	err = r.db.QueryRowContext(ctx, `SELECT prompt_snapshot,request_snapshot,COALESCE(usage_details,'null'::jsonb),skipped_hours FROM pelican_runs WHERE id=$1`, id).Scan(&prompt, &request, &usage, &skipped)
+	if err != nil {
+		return nil, err
+	}
+	var rawPath, previewPath string
+	notes := json.RawMessage("[]")
+	err = r.db.QueryRowContext(ctx, `SELECT raw_path,preview_path,preview_notes FROM pelican_artifacts WHERE run_id=$1`, id).Scan(&rawPath, &previewPath, &notes)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	return map[string]any{"run": item, "prompt": prompt, "request": request, "usage": usage, "skipped_hours": skipped, "source_available": rawPath != "", "raw_path": rawPath, "preview_path": previewPath, "preview_notes": notes}, nil
 }
 
 func (r *Repository) Cleanup(ctx context.Context) error {
 	// A bounded batch handles all supported intervals and avoids long-held locks.
-	_, err := r.db.ExecContext(ctx, `DELETE FROM pelican_runs WHERE id IN (SELECT r.id FROM pelican_runs r
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	rows, err := tx.QueryContext(ctx, `SELECT r.id FROM pelican_runs r
  JOIN pelican_config c ON c.id=r.config_id WHERE r.status<>'running'
- AND r.scheduled_for < NOW() - make_interval(days => c.retention_days) ORDER BY r.id LIMIT 500)`)
+ AND r.scheduled_for < NOW() - make_interval(days => c.retention_days) ORDER BY r.id LIMIT 500 FOR UPDATE OF r`)
 	if err != nil {
 		return fmt.Errorf("pelican retention: %w", err)
 	}
-	return nil
+	ids := []int64{}
+	for rows.Next() {
+		var id int64
+		if err = rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, id)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if err = r.files.removeRun(id); err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx, `DELETE FROM pelican_runs WHERE id=$1`, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }

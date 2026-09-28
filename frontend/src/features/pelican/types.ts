@@ -63,6 +63,10 @@ export interface RunDetail {
   request: unknown
   usage: unknown
   skipped_hours: number
+  source_available: boolean
+  raw_path: string
+  preview_path: string
+  preview_notes: string[]
 }
 export const topicIDs = ['pelican-ski', 'wukong-airplane', 'polar-bear-ultraman'] as const
 export function formatTime(value: string | null, locale: string): string {

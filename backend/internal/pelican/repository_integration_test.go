@@ -56,7 +56,7 @@ func testRepository(t *testing.T) *Repository {
 		t.Fatal(err)
 	}
 	for i := 0; i < 2; i++ {
-		for _, name := range []string{"241_local_pelican_gallery.sql", "242_local_pelican_interval.sql"} {
+		for _, name := range []string{"241_local_pelican_gallery.sql", "242_local_pelican_interval.sql", "243_local_pelican_files.sql"} {
 			migration, err := os.ReadFile(filepath.Join("..", "..", "migrations", name))
 			if err != nil {
 				t.Fatal(err)
@@ -66,7 +66,9 @@ func testRepository(t *testing.T) *Repository {
 			}
 		}
 	}
-	return NewRepository(db)
+	repo := NewRepository(db)
+	repo.files = &artifactFiles{dir: t.TempDir()}
+	return repo
 }
 
 func TestPostgresClaimOnceAndPublishOnlySuccess(t *testing.T) {

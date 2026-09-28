@@ -131,7 +131,6 @@ func TestPreviewRetainsAnimationAndBlocksActiveContent(t *testing.T) {
 	for name, content := range map[string]string{
 		"script":        `<script>alert(1)</script>`,
 		"event":         `<svg onload="alert(1)"></svg>`,
-		"foreignObject": `<svg><foreignObject><div>x</div></foreignObject></svg>`,
 		"external use":  `<svg><use href="https://example.com/a.svg#x"/></svg>`,
 		"external CSS":  `<style>svg{background:url(https://example.com/track)}</style>`,
 		"escaped CSS":   `<style>svg{background:u\72l(https://example.com/x)}</style>`,
@@ -142,8 +141,17 @@ func TestPreviewRetainsAnimationAndBlocksActiveContent(t *testing.T) {
 		"image-set":     `<style>svg{background:image-set('https://example.com/a' 1x)}</style>`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			if _, err := preparePreview(strings.Replace(safeExample, "</body>", content+"</body>", 1)); err == nil {
-				t.Fatal("accepted active content")
+			preview, notes, err := sanitizePreview(strings.Replace(safeExample, "</body>", content+"</body>", 1))
+			if err != nil || preview == "" {
+				t.Fatalf("discarded otherwise valid drawing: %v", err)
+			}
+			if len(notes) == 0 {
+				t.Fatal("missing sanitization diagnostics")
+			}
+			for _, unsafe := range []string{"<script", "onload=", "<iframe", "https://example.com", "javascript:", "http-equiv=\"refresh\""} {
+				if strings.Contains(preview, unsafe) {
+					t.Fatalf("retained active content: %s", unsafe)
+				}
 			}
 		})
 	}

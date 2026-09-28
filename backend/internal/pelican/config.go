@@ -10,7 +10,7 @@ import (
 const (
 	Model                = "gpt-6-astra"
 	ReasoningEffort      = "high"
-	PreviewPolicyVersion = 1
+	PreviewPolicyVersion = 2
 	MaxArtifactBytes     = 1 << 20
 	MaxResponseBytes     = 4 << 20
 	ManualRunCooldown    = 10 * time.Second

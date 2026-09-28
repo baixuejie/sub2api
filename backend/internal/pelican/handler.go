@@ -29,6 +29,7 @@ func (m *Module) RegisterRoutes(admin, user *gin.RouterGroup, actorID func(*gin.
 	a.GET("/runs", func(c *gin.Context) { h.list(c, true) })
 	a.GET("/runs/:id", h.detail)
 	a.GET("/runs/:id/source", func(c *gin.Context) { h.artifact(c, true) })
+	a.POST("/runs/:id/preview", h.rebuildPreview)
 	u := user.Group("/pelican")
 	u.Use(func(c *gin.Context) { c.Header("Cache-Control", "private, no-store"); c.Next() })
 	u.GET("/status", h.status)
@@ -237,6 +238,19 @@ func (h *Handler) detail(c *gin.Context) {
 		return
 	}
 	response.Success(c, data)
+}
+func (h *Handler) rebuildPreview(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	defer cancel()
+	if err := h.module.Repo.RebuildPreview(ctx, id); err != nil {
+		writeError(c, err)
+		return
+	}
+	h.detail(c)
 }
 func (h *Handler) groups(c *gin.Context) {
 	data, err := h.module.Repo.Groups(c.Request.Context())

@@ -20,6 +20,7 @@ type Generation struct {
 	OutputTokens *int64
 	TotalTokens  *int64
 	Usage        json.RawMessage
+	PreviewNotes []string
 }
 
 type generationError struct{ status, code string }

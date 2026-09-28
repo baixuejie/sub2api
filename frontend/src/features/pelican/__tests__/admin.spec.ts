@@ -9,6 +9,7 @@ const api = vi.hoisted(() => ({
   clearKey: vi.fn(),
   runNow: vi.fn(),
   detail: vi.fn(),
+  rebuildPreview: vi.fn(),
   source: vi.fn()
 }))
 vi.mock('../api', () => ({ pelicanAPI: api }))
@@ -112,4 +113,23 @@ it.each([409, 429])('explains a rejected manual request (%i)', async (status) =>
   await wrapper.find('[data-testid="pelican-run-now"]').trigger('click')
   await flushPromises()
   expect(wrapper.find('[role="alert"]').text()).toBe(status === 409 ? 'pelican.runActive' : 'pelican.runCooldown')
+})
+
+it('loads blocked original source and rebuilds its preview without a generation request', async () => {
+  const run = { id: 42, status: 'preview_blocked', topic_id: 'pelican-ski', groups: [], scheduled_for: '2026-09-28T16:00:00Z', error_code: 'preview_unavailable' }
+  const detail = { run, prompt: 'draw', request: {}, usage: null, skipped_hours: 0, source_available: true, raw_path: '42/source.txt', preview_path: '', preview_notes: ['not_html_or_svg'] }
+  api.list.mockResolvedValue({ items: [run], next_cursor: '' })
+  api.detail.mockResolvedValue(detail)
+  api.source.mockResolvedValue({ source: '<svg><circle r="4"/></svg>' })
+  api.rebuildPreview.mockResolvedValue({ ...detail, run: { ...run, status: 'succeeded' }, preview_notes: [] })
+  wrapper = mount(Admin, { global: { stubs: { RouterLink: true, BaseDialog: { props: ['show'], template: '<div v-if="show"><slot /></div>' } } } })
+  await flushPromises()
+  await wrapper.findAll('button').find((button) => button.text() === 'pelican.detail')!.trigger('click')
+  await flushPromises()
+  expect(api.source).toHaveBeenCalledWith(42)
+  expect(wrapper.text()).toContain('<svg><circle')
+  await wrapper.findAll('button').find((button) => button.text() === 'pelican.rebuildPreview')!.trigger('click')
+  await flushPromises()
+  expect(api.rebuildPreview).toHaveBeenCalledWith(42)
+  expect(api.runNow).not.toHaveBeenCalled()
 })

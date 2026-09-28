@@ -51,5 +51,8 @@ export const pelicanAPI = {
   },
   async source(id: number): Promise<{ source: string }> {
     return (await apiClient.get(`/admin/pelican/runs/${id}/source`)).data
+  },
+  async rebuildPreview(id: number): Promise<RunDetail> {
+    return (await apiClient.post(`/admin/pelican/runs/${id}/preview`)).data
   }
 }

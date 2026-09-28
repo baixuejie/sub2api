@@ -1,6 +1,6 @@
 import DOMPurify from 'dompurify'
 
-export const PREVIEW_POLICY_VERSION = 1
+export const PREVIEW_POLICY_VERSION = 2
 const csp =
   "default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
 const animatedAttributes = new Set(
@@ -16,7 +16,8 @@ export function buildPreviewHTML(raw: string): string | null {
   const clean = DOMPurify.sanitize(raw, {
     WHOLE_DOCUMENT: true,
     USE_PROFILES: { html: true, svg: true, svgFilters: true },
-    ADD_TAGS: ['style', 'animate', 'animateTransform', 'animateMotion', 'mpath'],
+    HTML_INTEGRATION_POINTS: { foreignobject: true },
+    ADD_TAGS: ['style', 'animate', 'animateTransform', 'animateMotion', 'mpath', 'foreignObject', 'set', 'use'],
     ADD_ATTR: [
       'attributeName',
       'attributeType',
@@ -38,7 +39,6 @@ export function buildPreviewHTML(raw: string): string | null {
     ],
     FORBID_TAGS: [
       'script',
-      'foreignObject',
       'iframe',
       'object',
       'embed',
@@ -58,7 +58,7 @@ export function buildPreviewHTML(raw: string): string | null {
     FORBID_ATTR: ['src', 'srcset', 'action', 'formaction', 'target']
   })
   const doc = new DOMParser().parseFromString(clean, 'text/html')
-  if (!doc.querySelector('svg')) return null
+  if (!doc.querySelector('svg, div, main, section, figure')) return null
   for (const element of doc.querySelectorAll('*')) {
     for (const attribute of [...element.attributes]) {
       if (
