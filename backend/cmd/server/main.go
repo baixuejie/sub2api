@@ -176,6 +176,10 @@ func runMainServer() {
 	}()
 
 	log.Printf("Server started on %s", app.Server.Addr)
+	if app.Pelican != nil {
+		app.Pelican.Start()
+		defer app.Pelican.Stop()
+	}
 
 	// 等待中断信号
 	quit := make(chan os.Signal, 1)
@@ -183,6 +187,9 @@ func runMainServer() {
 	<-quit
 
 	log.Println("Shutting down server...")
+	if app.Pelican != nil {
+		app.Pelican.Stop()
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

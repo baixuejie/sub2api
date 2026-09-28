@@ -6,8 +6,10 @@ import batchImage from './batchImage'
 import imageGeneration from './imageGeneration'
 import admin from './admin'
 import misc from './misc'
+import pelican from '@/features/pelican/locales/zh'
 
 export default {
+  pelican,
   ...landing,
   ...common,
   ...dashboard,

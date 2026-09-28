@@ -13,6 +13,7 @@ import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
+import { pelicanRoutes } from '@/features/pelican/routes'
 
 /**
  * Route definitions with lazy loading
@@ -751,6 +752,8 @@ const routes: RouteRecordRaw[] = [
       requiresPayment: true
     }
   },
+
+  ...pelicanRoutes,
 
   // ==================== 404 Not Found ====================
   {

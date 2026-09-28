@@ -1,0 +1,77 @@
+# 降智测试画廊：实施与使用记录
+
+2026-09-28，第一版已在本地完成，分支 `codex/pelican-gallery`。基于原作者 `v0.2.8` / `a3eb7ef302961cba716dc78b39b93b60c467db0e`，尚未提交、推送或部署；未配置真实 API Key，也未产生真实模型调用。
+
+## 使用入口
+
+部署包含本次改动的前后端后，侧边栏可进入：
+
+- `/admin/pelican`：管理员配置指定 Key、作品分组标签、题目模式、预算、超时和保留天数，并查看后台运行记录。
+- `/pelican`：登录用户查看作品、按题目或分组筛选、点击放大。
+
+功能默认关闭。首次启用需要服务器已有持久化的 `TOTP_ENCRYPTION_KEY`（或对应 `totp.encryption_key` 配置）；沿用站点现有值，不轮换已有加密密钥。未配置时页面禁用 Key 输入与启用按钮，后端同样拒绝存储 Key 或启用生成。
+
+填写当前 sub2api 实例签发的 API Key，勾选分组并启用后保存。首轮从下一整点开始，扫描误差通常在 15 秒内。多选 A、B、C 仍只生成一份，该作品同时显示三个标签；标签不改变 Key 的路由、分组权限或计费。Key 的实际分组必须允许 `gpt-6-astra`，避免配置模型或推理强度改写；IP 限制也需允许本服务的本地请求。
+
+默认三题轮换：鹈鹕滑雪、孙悟空开飞机、北极熊骑奥特曼，也可固定一个题目。模型固定 `gpt-6-astra`，推理强度固定 `high`。输出上限默认 16,384 token，超时 300 秒，历史保留 30 天；上限不是每轮固定消耗。公共提示词为：
+
+> 只生成代码，不检查、不测试、不解释。仅输出完整HTML，用内联SVG和CSS，不用脚本或外链。
+
+保存配置、刷新、翻页和放大只读取或写入配置/历史，不调用模型。没有手动生成入口。清除 Key 同时关闭调度；关闭调度不追补缺失时隙，已开始的请求可在原超时内结束。
+
+## 执行和展示规则
+
+服务端定时扫描与单个异步 worker 分离，不依赖页面保持打开。数据库行锁、每小时时隙唯一约束和运行中部分唯一索引共同防止多实例重复领取；租约与领取令牌防止过期 worker 覆盖终态。重启只考虑当前到期小时，跳过更早时隙。模块每轮最多向本实例 `/v1/responses` 发出一次 HTTP 请求，无自动重试、补发或第二次模型修复；网关自身仍遵循站点已有路由和故障转移策略。
+
+只有成功且符合预览策略的作品进入画廊。失败仅在管理员运行记录中显示固定诊断码，画廊不出现失败卡片或错误页面；列表刷新暂时失败时保留已有作品。没有浏览器验收、评分、自动检查代码效果、截图或裁判模型。
+
+预览保留 HTML、内联 SVG、CSS 和受限 SVG 动画。后端解析与前端 DOMPurify 只做本地展示隔离，不调用模型、不执行生成代码。iframe 使用空 sandbox、独立来源和固定 CSP，禁用脚本、外链、网络请求及跳转。作品通过登录鉴权接口返回；原始源码只向管理员返回 JSON 字符串。
+
+成功作品原文与预览各最多 1 MiB。失败源码不落库，只保存可用的用量和固定诊断码；上游错误正文不写入日志。指定 Key 加密保存，不回传明文或密文，配置保存请求的审计省略正文；管理员读取源码另记审计。历史标签按生成时快照保存。每小时分批清理最多 500 条过期终态，执行中任务不被清理。
+
+## 改动范围与升级
+
+主要新增 `backend/internal/pelican/`、`frontend/src/features/pelican/`、`backend/cmd/server/pelican.go` 和迁移 `backend/migrations/241_local_pelican_gallery.sql`。不修改现有账号定时测试表、渠道监控或网关热路径。
+
+现有文件仅改动 10 个：服务启动/停止与 Wire 装配、审计两个路由条目、Go 依赖、前端路由/侧边栏/中英文语言包入口。新增 CSS 词法分析依赖 `github.com/tdewolff/parse/v2 v2.8.16`，前端复用已有 DOMPurify。Wire 输出已重新生成。
+
+数据库迁移由现有启动流程自动加载。合并上游时重点检查装配、认证与限流中间件、审计注册以及 Responses 协议；迁移一旦部署，不应改名或改写，后续追加新文件。功能回退可先关闭调度，再回退应用代码，保留新增表。
+
+## 已完成验证
+
+所有生成结果均来自本地 HTTP mock 或固定绘图样例。临时数据库使用独立 PostgreSQL 17.6、本地端口和隔离测试 schema，没有连接生产数据库。
+
+| 验证 | 结果及范围 |
+| --- | --- |
+| Go 模块单元测试 | 固定模型/强度、一次请求、无重试及重定向、SSE 完成事件、拒绝截断/敏感回显、HTML/SVG/CSS 策略、轮换与取消均通过 |
+| PostgreSQL 集成测试 | 10 个并发领取只产生一轮；一个作品包含三个标签；失败隐藏、标签快照、游标分页、租约过期与保留期清理均通过 |
+| HTTP 边界测试 | 普通用户不能修改配置或读取源码；保存不触发生成；Key 不回传；固定字段不可改；旧 revision 不覆盖；临时加密密钥不可存储凭据 |
+| 审计与后端构建 | 审计相关测试及 `go build ./cmd/server` 通过 |
+| 前端测试 | 画廊、配置、预览策略、既有侧边栏与语言包相关测试共 22 项通过 |
+| 静态检查与前端构建 | `vue-tsc --noEmit`、全仓 ESLint 和 Vite 构建通过 |
+| 浏览器固定样例验证 | 实际画廊/配置/预览组件正常显示；SVG/CSS 动画、放大、Escape 关闭、标签复选框、桌面三列与手机单列通过；手机无横向溢出；最终页面无新增控制台错误 |
+
+浏览器验证使用临时 Vite 样例入口，API 与布局外壳为本地 mock，内部功能组件为实际源码。因此不代表完整生产登录流程或真实上游模型已验证。临时预览和 PostgreSQL 已在验证后停止。
+
+### 复现检查
+
+后端在 `backend/` 下运行：
+
+```powershell
+go test ./internal/pelican -count=1
+go test ./internal/server/middleware -run Audit -count=1
+go build ./cmd/server
+```
+
+设置 `PELICAN_TEST_DATABASE_URL` 指向专用测试 PostgreSQL 后，第一条命令会同时运行数据库和 HTTP 集成测试；不设置则显式跳过这些集成测试。测试账号需要创建与删除 schema 的权限，不要指向生产数据库。
+
+前端使用当前锁文件兼容的 pnpm 10 安装依赖，在 `frontend/` 下运行：
+
+```powershell
+.\node_modules\.bin\vue-tsc.cmd --noEmit
+.\node_modules\.bin\eslint.cmd . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts
+.\node_modules\.bin\vitest.cmd run src/features/pelican/__tests__ src/components/layout/__tests__/AppSidebar.spec.ts src/i18n/__tests__/localeKeyCompleteness.spec.ts src/i18n/__tests__/localesMessageCompile.spec.ts
+.\node_modules\.bin\vite.cmd build
+```
+
+本机默认 pnpm 11 与仓库现有 overrides 不兼容，因此安装使用 pnpm 10.18.3，验证直接运行本地可执行文件。Vite 构建仅有现有大 chunk、静态/动态混合导入及 browserslist 数据过期提示。

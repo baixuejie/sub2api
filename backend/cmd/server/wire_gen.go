@@ -13,6 +13,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
+	"github.com/Wei-Shaw/sub2api/internal/pelican"
 	"github.com/Wei-Shaw/sub2api/internal/repository"
 	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
 	"github.com/Wei-Shaw/sub2api/internal/server"
@@ -334,6 +335,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	stepUpAuthMiddleware := middleware.NewStepUpAuthMiddleware(totpService, userService, settingService)
 	engine := server.ProvideRouter(configConfig, handlers, jwtAuthMiddleware, optionalJWTAuthMiddleware, adminAuthMiddleware, apiKeyAuthMiddleware, auditLogMiddleware, stepUpAuthMiddleware, apiKeyService, subscriptionService, opsService, settingService, compositeRouteResolver, redisClient, db)
 	httpServer := server.ProvideHTTPServer(configConfig, engine)
+	module := providePelican(engine, db, configConfig, secretEncryptor, adminAuthMiddleware, jwtAuthMiddleware, auditLogMiddleware, settingService, redisClient)
 	opsMetricsCollector := service.ProvideOpsMetricsCollector(opsRepository, settingRepository, accountRepository, concurrencyService, db, redisClient, configConfig)
 	opsAggregationService := service.ProvideOpsAggregationService(opsRepository, settingRepository, db, redisClient, configConfig)
 	opsAlertEvaluatorService := service.ProvideOpsAlertEvaluatorService(opsService, opsRepository, emailService, redisClient, configConfig, proxyRepository)
@@ -358,6 +360,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 		Server:        httpServer,
 		PromptAudit:   promptService,
 		PluginManager: pluginManager,
+		Pelican:       module,
 		Cleanup:       v,
 	}
 	return application, nil
@@ -369,6 +372,7 @@ type Application struct {
 	Server        *http.Server
 	PromptAudit   *securityaudit.PromptService
 	PluginManager *service.PluginManager
+	Pelican       *pelican.Module
 	Cleanup       func()
 }
 
