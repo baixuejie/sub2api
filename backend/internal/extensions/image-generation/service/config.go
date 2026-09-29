@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -15,7 +16,6 @@ import (
 
 const (
 	imageGenerationUserSettingPrefix = "extension.image_generation.user."
-	defaultImageModel                = "gpt-image-2"
 	defaultPromptModel               = "gpt-4.1-mini"
 	defaultConfigSize                = "1024x1024"
 	defaultConfigN                   = 1
@@ -254,6 +254,11 @@ func (s *Service) buildConfigCatalog(ctx context.Context, userID int64) (*config
 			}
 		}
 		if len(imageOption.Models) > 0 {
+			// 模型按名称升序，与模型广场的排序一致；末位即最新一代，
+			// preferredImageSelection 据此把最新模型作为默认首选。
+			sort.SliceStable(imageOption.Models, func(i, j int) bool {
+				return strings.ToLower(imageOption.Models[i].Name) < strings.ToLower(imageOption.Models[j].Name)
+			})
 			catalog.options.ImageGroups = append(catalog.options.ImageGroups, imageOption)
 			catalog.imageModels[group.ID] = imageSeen
 		}
@@ -376,16 +381,15 @@ func validateConfig(cfg UserImageConfig, catalog *configCatalog) error {
 	return nil
 }
 
+// preferredImageSelection 在已保存的图片模型失效时挑一个默认值：取首个有模型的
+// 分组中名称升序的末位模型，即当前最新一代；新增 gpt-image 模型后无需改代码即可
+// 自动选中。存量配置只要仍然有效就不会走到这里（见 normalizeStoredConfig）。
 func preferredImageSelection(catalog *configCatalog) (int64, string) {
 	for _, group := range catalog.options.ImageGroups {
-		for _, model := range group.Models {
-			if strings.EqualFold(model.Name, defaultImageModel) {
-				return group.ID, model.Name
-			}
+		if len(group.Models) == 0 {
+			continue
 		}
-	}
-	if len(catalog.options.ImageGroups) > 0 && len(catalog.options.ImageGroups[0].Models) > 0 {
-		return catalog.options.ImageGroups[0].ID, catalog.options.ImageGroups[0].Models[0].Name
+		return group.ID, group.Models[len(group.Models)-1].Name
 	}
 	return 0, ""
 }

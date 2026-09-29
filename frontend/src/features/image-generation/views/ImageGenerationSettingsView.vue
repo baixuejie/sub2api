@@ -126,6 +126,9 @@ import { useI18n } from 'vue-i18n'
 import { loadImageGenerationConfig, saveImageGenerationConfig } from '../api/imageGeneration'
 import {
   DEFAULT_IMAGE_GENERATION_CONFIG,
+  EXTENDED_IMAGE_SIZES,
+  LEGACY_IMAGE_SIZES,
+  supportsExtendedImageSizes,
   type ImageGenerationConfig,
   type ImageGenerationConfigGroupOption,
   type ImageGenerationConfigOptionsResponse
@@ -155,9 +158,7 @@ const imageModelOptions = computed<SelectOption[]>(() => modelOptions(imageGroup
 const promptKeyOptions = computed<SelectOption[]>(() => keyOptions(config.prompt_group_id, false))
 const imageKeyOptions = computed<SelectOption[]>(() => keyOptions(config.image_group_id, true))
 const sizeOptions = computed<SelectOption[]>(() => {
-  const values = config.image_model.toLowerCase() === 'gpt-image-2'
-    ? ['auto', '1024x1024', '1536x1024', '1024x1536', '2048x2048', '3072x2048', '2048x3072']
-    : ['auto', '1024x1024', '1536x1024', '1024x1536']
+  const values = supportsExtendedImageSizes(config.image_model) ? EXTENDED_IMAGE_SIZES : LEGACY_IMAGE_SIZES
   return values.map((value) => ({ value, label: value }))
 })
 
@@ -194,7 +195,9 @@ watch(() => config.prompt_group_id, () => {
 
 watch(() => config.image_group_id, () => {
   if (!imageGroup.value?.models.some((model) => model.name === config.image_model)) {
-    config.image_model = imageGroup.value?.models.find((model) => model.name.toLowerCase() === 'gpt-image-2')?.name ?? imageGroup.value?.models[0]?.name ?? ''
+    // 后端下发的模型按名称升序，末位即最新一代，与 preferredImageSelection 一致。
+    const models = imageGroup.value?.models ?? []
+    config.image_model = models[models.length - 1]?.name ?? ''
   }
   if (!imageKeyOptions.value.some((option) => option.value === config.image_api_key_id)) {
     config.image_api_key_id = Number(imageKeyOptions.value[0]?.value ?? 0)

@@ -12,7 +12,24 @@ export type ImageGenerationBackground = 'auto' | 'opaque' | 'transparent'
 export type ImageGenerationModeration = 'auto' | 'low'
 
 export const DEFAULT_IMAGE_SIZES = ['1024x1024', '1536x1024', '1024x1536'] as const
+// gpt-image-2 及以后支持扩展预设尺寸，更早的模型只支持 legacy 尺寸。
+// 与后端 service.go 的 legacyImageSizes / extendedImagePresetSizes 保持一致。
+export const MIN_EXTENDED_SIZE_VERSION = 2
+export const LEGACY_IMAGE_SIZES = ['auto', '1024x1024', '1536x1024', '1024x1536'] as const
+export const EXTENDED_IMAGE_SIZES = ['auto', '1024x1024', '1536x1024', '1024x1536', '2048x2048', '3072x2048', '2048x3072'] as const
 export const DEFAULT_IMAGE_QUALITIES: ImageGenerationQuality[] = ['auto', 'low', 'medium', 'high']
+
+/**
+ * gpt-image-2 及以后（版本 >= MIN_EXTENDED_SIZE_VERSION）支持扩展预设尺寸。
+ * 解析 `gpt-image-<主版本>[.<次版本>]` 的前导版本号，无法解析时视为不支持；
+ * 与后端 service.go 的 supportsExtendedImageSizes 保持一致。
+ */
+export function supportsExtendedImageSizes(model: string): boolean {
+  const normalized = model.trim().toLowerCase()
+  if (!normalized.startsWith('gpt-image-')) return false
+  const version = Number.parseFloat(normalized.slice('gpt-image-'.length))
+  return Number.isFinite(version) && version >= MIN_EXTENDED_SIZE_VERSION
+}
 export const DEFAULT_IMAGE_FORMATS: ImageGenerationFormat[] = ['png', 'jpeg', 'webp']
 export const DEFAULT_IMAGE_BACKGROUNDS: ImageGenerationBackground[] = ['auto', 'opaque', 'transparent']
 export const DEFAULT_IMAGE_MODERATIONS: ImageGenerationModeration[] = ['auto', 'low']

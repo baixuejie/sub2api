@@ -52,9 +52,6 @@ type PlazaGroup struct {
 	// = 档位价 × ImageRateMultiplier，不乘分组/用户专属倍率（与计费口径一致）。
 	ImageRateIndependent bool
 	ImageRateMultiplier  float64
-	// 视频独立倍率与图片独立倍率分别配置，开启时覆盖分组/用户专属倍率。
-	VideoRateIndependent bool
-	VideoRateMultiplier  float64
 	// LongContextPricingEnabled 分组是否按上下文长度应用阶梯价；关闭时模型展示的是最低档。
 	LongContextPricingEnabled bool
 	Models                    []PlazaModel
@@ -123,8 +120,6 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 			IsExclusive:               g.IsExclusive,
 			ImageRateIndependent:      g.ImageRateIndependent,
 			ImageRateMultiplier:       g.ImageRateMultiplier,
-			VideoRateIndependent:      g.VideoRateIndependent,
-			VideoRateMultiplier:       g.VideoRateMultiplier,
 			LongContextPricingEnabled: g.LongContextPricingEnabled,
 		}
 		groupEnt[g.ID] = g
@@ -194,6 +189,7 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 	return out, nil
 }
 
+// resolverWithoutChannels returns a resolver suitable for the model plaza. A
 // normalizePlazaModelAllowlist 归一化广场展示用的分组白名单：条目 TrimSpace、
 // 去空、按原文精确去重并保序（与展示语义一致，不做大小写折叠）。仅供广场
 // 只读展示使用；管理端提交入口的校验见 normalizeGroupModelAllowlist。
@@ -254,13 +250,13 @@ func (s *ModelPlazaService) ListPlazaGroups(ctx context.Context) ([]PlazaGroup, 
 // token 模型取计费阶梯表（单价与档位均由真实计费函数得出），
 // 图片/按次模型（或阶梯表不可用时）沿用模型价卡与分组图片档位价。
 func (s *ModelPlazaService) fillDisplayPricing(ctx context.Context, m *PlazaModel, g *Group) {
+	if groupPricing := matchGroupModelPricing(g, m.Name); groupPricing != nil {
+		m.Pricing = groupPricing
+	}
 	s.fillDisplayPricingWithResolver(ctx, m, g, s.resolver)
 }
 
 func (s *ModelPlazaService) fillDisplayPricingWithResolver(ctx context.Context, m *PlazaModel, g *Group, resolver *ModelPricingResolver) {
-	if groupPricing := matchGroupModelPricing(g, m.Name); groupPricing != nil {
-		m.Pricing = groupPricing
-	}
 	// BillingService's catalog is token-oriented and does not retain LiteLLM's
 	// billing mode. Preserve an explicitly synthesized image/per-request card;
 	// only token (or unspecified) entries should go through the context probe.

@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  EXTENDED_IMAGE_SIZES,
+  LEGACY_IMAGE_SIZES,
   imageSource,
   normalizeImageGenerationConfigOptions,
   normalizeImageGenerationOptions,
+  supportsExtendedImageSizes,
   validateCustomImageSize
 } from '../types/imageGeneration'
 import { buildImageEditFormData } from '../api/imageGeneration'
@@ -74,6 +77,21 @@ describe('image-generation extension contracts', () => {
     expect(imageSource({ b64_json: 'abc', mime_type: 'image/svg+xml' }, 'webp')).toBe('data:image/webp;base64,abc')
     expect(imageSource({ url: 'https://cdn.example/image.png', b64_json: 'ignored' }, 'png')).toBe('https://cdn.example/image.png')
     expect(imageSource({}, 'webp')).toBe('')
+  })
+
+  it('extends preset sizes from gpt-image-2 onwards only', () => {
+    expect(supportsExtendedImageSizes('gpt-image-1')).toBe(false)
+    expect(supportsExtendedImageSizes('gpt-image-1.5')).toBe(false)
+    expect(supportsExtendedImageSizes('gpt-image-2')).toBe(true)
+    expect(supportsExtendedImageSizes('gpt-image-2.5-flare')).toBe(true)
+    expect(supportsExtendedImageSizes('gpt-image-2.5-sunburst')).toBe(true)
+    expect(supportsExtendedImageSizes('GPT-IMAGE-2.5-Sunburst')).toBe(true)
+    expect(supportsExtendedImageSizes('gpt-image-')).toBe(false)
+    expect(supportsExtendedImageSizes('gpt-4.1-mini')).toBe(false)
+    expect(supportsExtendedImageSizes('')).toBe(false)
+
+    expect(LEGACY_IMAGE_SIZES).not.toContain('2048x2048')
+    expect(EXTENDED_IMAGE_SIZES).toContain('2048x2048')
   })
 
   it('normalizes user image settings with a one-to-nine quantity and masked keys', () => {
